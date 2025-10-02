@@ -3,6 +3,7 @@ package br.com.matteusmoreno.domain.artist.request;
 import br.com.matteusmoreno.domain.artist.SocialLinks;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.bson.types.ObjectId;
 
 import java.util.List;
@@ -19,4 +20,10 @@ public record CreateArtistRequest(
         String biography,
         @NotBlank(message = "Profile image URL is required")
         String profileImageUrl,
+        @NotBlank(message = "CEP is required")
+        @Pattern(regexp = "\\d{5}-?\\d{3}", message = "Invalid CEP format")
+        String cep,
+        @NotBlank(message = "Number is required")
+        String number,
+        String complement,
         SocialLinks socialLinks) {}

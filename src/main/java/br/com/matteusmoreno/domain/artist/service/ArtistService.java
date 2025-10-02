@@ -1,5 +1,7 @@
 package br.com.matteusmoreno.domain.artist.service;
 
+import br.com.matteusmoreno.domain.address.Address;
+import br.com.matteusmoreno.domain.address.AddressService;
 import br.com.matteusmoreno.domain.artist.Artist;
 import br.com.matteusmoreno.domain.artist.request.AddSongRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
@@ -7,6 +9,8 @@ import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.*;
+import br.com.matteusmoreno.infrastructure.viacep.ViaCepClient;
+import br.com.matteusmoreno.infrastructure.viacep.ViaCepResponse;
 import br.com.matteusmoreno.security.SecurityService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,13 +26,14 @@ public class ArtistService {
     private final SubscriptionService subscriptionService;
     private final PlanService planService;
     private final SecurityService securityService;
+    private final AddressService addressService;
 
 
-
-    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService) {
+    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService, AddressService addressService) {
         this.subscriptionService = subscriptionService;
         this.planService = planService;
         this.securityService = securityService;
+        this.addressService = addressService;
     }
 
     // CREATE A NEW ARTIST
@@ -36,6 +41,8 @@ public class ArtistService {
         Artist.find("email", request.email()).firstResultOptional().ifPresent(artist -> {
             throw new EmailAlreadyExistsException("Email '" + request.email() + "' is already in use.");
         });
+
+        Address address = addressService.getAddressByCep(request.cep());
 
         String hashedPassword = securityService.hashPassword(request.password());
 
@@ -48,6 +55,7 @@ public class ArtistService {
                 .balance(BigDecimal.ZERO)
                 .profileImageUrl(request.profileImageUrl())
                 .profileQrCodeUrl("")
+                .address(address)
                 .socialLinks(request.socialLinks())
                 .subscription(subscriptionService.createFreeSubscription())
                 .active(true)

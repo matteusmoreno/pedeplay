@@ -1,5 +1,6 @@
 package br.com.matteusmoreno.domain.artist;
 
+import br.com.matteusmoreno.domain.address.Address;
 import br.com.matteusmoreno.domain.subscription.Subscription;
 import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import io.quarkus.mongodb.panache.common.MongoEntity;
@@ -23,6 +24,7 @@ public class Artist extends PanacheMongoEntity {
     public String email;
     public Boolean emailVerified;
     public String password;
+    public Address address;
     public String biography;
     public BigDecimal balance;
     public String profileImageUrl;
