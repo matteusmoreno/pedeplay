@@ -1,4 +1,4 @@
-package br.com.matteusmoreno.domain.song;
+package br.com.matteusmoreno.domain.song.request;
 
 import jakarta.validation.constraints.NotBlank;
 

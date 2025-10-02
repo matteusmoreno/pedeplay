@@ -1,4 +1,6 @@
-package br.com.matteusmoreno.domain.song;
+package br.com.matteusmoreno.domain.song.response;
+
+import br.com.matteusmoreno.domain.song.Song;
 
 import java.time.LocalDateTime;
 

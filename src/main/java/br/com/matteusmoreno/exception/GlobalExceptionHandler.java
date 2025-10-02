@@ -27,5 +27,25 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class SongNotFoundMapper implements ExceptionMapper<SongNotFoundException> {
+        @Override
+        public Response toResponse(SongNotFoundException exception) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
+    @Provider
+    public static class SongConflictMapper implements ExceptionMapper<SongConflictException> {
+        @Override
+        public Response toResponse(SongConflictException exception) {
+            return Response.status(Response.Status.CONFLICT)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }
