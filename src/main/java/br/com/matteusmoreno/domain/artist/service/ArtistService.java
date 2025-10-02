@@ -7,6 +7,7 @@ import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.*;
+import br.com.matteusmoreno.security.SecurityService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.bson.types.ObjectId;
@@ -20,11 +21,14 @@ public class ArtistService {
 
     private final SubscriptionService subscriptionService;
     private final PlanService planService;
+    private final SecurityService securityService;
 
 
-    public ArtistService(SubscriptionService subscriptionService, PlanService planService) {
+
+    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService) {
         this.subscriptionService = subscriptionService;
         this.planService = planService;
+        this.securityService = securityService;
     }
 
     // CREATE A NEW ARTIST
@@ -33,11 +37,13 @@ public class ArtistService {
             throw new EmailAlreadyExistsException("Email '" + request.email() + "' is already in use.");
         });
 
+        String hashedPassword = securityService.hashPassword(request.password());
+
         Artist artist = Artist.builder()
                 .name(request.name())
                 .email(request.email())
                 .emailVerified(false)
-                .password(request.password()) // In a real application, ensure to hash the password
+                .password(hashedPassword)
                 .biography(request.biography())
                 .balance(BigDecimal.ZERO)
                 .profileImageUrl(request.profileImageUrl())
