@@ -6,6 +6,7 @@ import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.ArtistNotFoundException;
+import br.com.matteusmoreno.exception.EmailAlreadyExistsException;
 import br.com.matteusmoreno.exception.SubscriptionLimitExceededException;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -25,6 +26,9 @@ public class ArtistService {
     }
 
     public Artist createArtist(CreateArtistRequest request) {
+        Artist.find("email", request.email()).firstResultOptional().ifPresent(artist -> {
+            throw new EmailAlreadyExistsException("Email '" + request.email() + "' is already in use.");
+        });
 
         Artist artist = Artist.builder()
                 .name(request.name())

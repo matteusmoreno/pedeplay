@@ -47,5 +47,15 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class EmailAlreadyExistsMapper implements ExceptionMapper<EmailAlreadyExistsException> {
+        @Override
+        public Response toResponse(EmailAlreadyExistsException exception) {
+            return Response.status(Response.Status.CONFLICT)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }
