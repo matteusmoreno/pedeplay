@@ -3,15 +3,17 @@ package br.com.matteusmoreno.domain.artist.service;
 import br.com.matteusmoreno.domain.artist.Artist;
 import br.com.matteusmoreno.domain.artist.request.AddSongRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
+import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
-import br.com.matteusmoreno.exception.ArtistNotFoundException;
-import br.com.matteusmoreno.exception.EmailAlreadyExistsException;
-import br.com.matteusmoreno.exception.SubscriptionLimitExceededException;
+import br.com.matteusmoreno.exception.*;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.bson.types.ObjectId;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @ApplicationScoped
 public class ArtistService {
@@ -25,6 +27,7 @@ public class ArtistService {
         this.planService = planService;
     }
 
+    // CREATE A NEW ARTIST
     public Artist createArtist(CreateArtistRequest request) {
         Artist.find("email", request.email()).firstResultOptional().ifPresent(artist -> {
             throw new EmailAlreadyExistsException("Email '" + request.email() + "' is already in use.");
@@ -51,9 +54,50 @@ public class ArtistService {
         return artist;
     }
 
+    // GET ARTIST BY ID
+    public Artist getArtistById(ObjectId artistId) {
+        Artist artist = Artist.findById(artistId);
+        if (artist == null) throw new ArtistNotFoundException("Artist not found with ID: " + artistId);
+
+        return artist;
+    }
+
+    // GET ALL ARTISTS WITH PAGINATION
+    public List<Artist> getAllArtists(int page, int size) {
+        return Artist.findAll(Sort.ascending("name")).page(page, size).list();
+    }
+
+    // UPDATE ARTIST DETAILS
+
+    // DISABLE ARTIST ACCOUNT
+    public void disableArtist(ObjectId artistId) {
+        Artist artist = getArtistById(artistId);
+
+        if (!artist.active) throw new ArtistAlreadyDisabledException("Artist with ID: " + artistId + " is already disabled.");
+
+        artist.active = false;
+        artist.updatedAt = LocalDateTime.now();
+        artist.deletedAt = LocalDateTime.now();
+
+        artist.update();
+    }
+
+    // ENABLE ARTIST ACCOUNT
+    public void enableArtist(ObjectId artistId) {
+        Artist artist = getArtistById(artistId);
+
+        if (artist.active) throw new ArtistAlreadyEnabledException("Artist with ID: " + artistId + " is already enabled.");
+
+        artist.active = true;
+        artist.updatedAt = LocalDateTime.now();
+        artist.deletedAt = null;
+
+        artist.update();
+    }
+
+    // ADD SONGS TO ARTIST'S REPERTOIRE WITH SUBSCRIPTION LIMIT CHECK
     public Artist addSongsToRepertoire(AddSongRequest request) {
-        Artist artist = Artist.findById(request.artistId());
-        if (artist == null) throw new ArtistNotFoundException("Artist not found with ID: " + request.artistId());
+        Artist artist = getArtistById(request.artistId());
 
         Integer songLimit = planService.getSongLimitForPlan(artist.subscription.planType);
         int currentRepertoireSize = artist.repertoire.size();

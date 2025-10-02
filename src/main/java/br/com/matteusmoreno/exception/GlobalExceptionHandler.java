@@ -57,5 +57,25 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class ArtistAlreadyDisabledMapper implements ExceptionMapper<ArtistAlreadyDisabledException> {
+        @Override
+        public Response toResponse(ArtistAlreadyDisabledException exception) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
+    @Provider
+    public static class ArtistAlreadyEnabledMapper implements ExceptionMapper<ArtistAlreadyEnabledException> {
+        @Override
+        public Response toResponse(ArtistAlreadyEnabledException exception) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }

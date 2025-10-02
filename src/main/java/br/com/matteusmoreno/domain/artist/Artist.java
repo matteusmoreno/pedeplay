@@ -19,7 +19,6 @@ import java.util.List;
 @Builder
 public class Artist extends PanacheMongoEntity {
 
-    public ObjectId id;
     public String name;
     public String email;
     public Boolean emailVerified;

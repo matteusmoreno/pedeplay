@@ -6,14 +6,14 @@ import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
 import br.com.matteusmoreno.domain.artist.response.ArtistDetailsResponse;
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.PATCH;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
+import org.bson.types.ObjectId;
 
 import java.net.URI;
+import java.util.List;
 
 @Path("/artists")
 public class ArtistResource {
@@ -30,6 +30,42 @@ public class ArtistResource {
         URI uri = uriInfo.getAbsolutePathBuilder().build();
 
         return Response.created(uri).entity(new ArtistDetailsResponse(artist)).build();
+    }
+
+    @GET
+    @Path("/{artistId}")
+    public Response getArtistById(@PathParam("artistId") String artistId) {
+        Artist artist = artistService.getArtistById(new ObjectId(artistId));
+
+        return Response.ok(new ArtistDetailsResponse(artist)).build();
+    }
+
+    @GET
+    @Path("/all")
+    public Response getAllArtists(@QueryParam("page") @DefaultValue("0") int page,
+                                  @QueryParam("size") @DefaultValue("10") int size) {
+
+        List<Artist> artists = artistService.getAllArtists(page, size);
+        List<ArtistDetailsResponse> response = artists.stream().map(ArtistDetailsResponse::new).toList();
+
+        return Response.ok(response).build();
+    }
+
+
+    @DELETE
+    @Path("/disable/{artistId}")
+    public Response disableArtist(@PathParam("artistId") String artistId) {
+        artistService.disableArtist(new ObjectId(artistId));
+
+        return Response.noContent().build();
+    }
+
+    @PATCH
+    @Path("/enable/{artistId}")
+    public Response enableArtist(@PathParam("artistId") String artistId) {
+        artistService.enableArtist(new ObjectId(artistId));
+
+        return Response.noContent().build();
     }
 
     @PATCH

@@ -27,7 +27,7 @@ public record ArtistDetailsResponse(
 
     public ArtistDetailsResponse(Artist artist) {
         this(
-                artist.id, // PanacheMongoEntity usa 'id', não 'artistId'
+                artist.id,
                 artist.name,
                 artist.email,
                 artist.emailVerified,

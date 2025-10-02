@@ -4,7 +4,7 @@ import br.com.matteusmoreno.domain.song.request.CreateSongRequest;
 import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.request.UpdateSongRequest;
 import br.com.matteusmoreno.domain.song.response.SongDetailsResponse;
-import br.com.matteusmoreno.domain.song.SongService;
+import br.com.matteusmoreno.domain.song.service.SongService;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;

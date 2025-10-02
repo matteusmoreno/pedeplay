@@ -1,6 +1,7 @@
-package br.com.matteusmoreno.domain.song;
+package br.com.matteusmoreno.domain.song.service;
 
 import br.com.matteusmoreno.domain.artist.Artist;
+import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.request.CreateSongRequest;
 import br.com.matteusmoreno.domain.song.request.UpdateSongRequest;
 import br.com.matteusmoreno.exception.SongConflictException;
