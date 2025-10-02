@@ -14,7 +14,7 @@ import java.util.List;
 @Slf4j
 public class SubscriptionScheduler {
 
-    @Scheduled(cron = "0 0 3 * * ?")
+    @Scheduled(cron = "0 0 0 * * ?", timeZone = "America/Sao_Paulo")
     @Transactional
     void processDailySubscriptionResets() {
         LocalDateTime now = LocalDateTime.now();
