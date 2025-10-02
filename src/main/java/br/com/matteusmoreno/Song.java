@@ -1,0 +1,19 @@
+package br.com.matteusmoreno;
+
+import io.quarkus.mongodb.panache.PanacheMongoEntity;
+import io.quarkus.mongodb.panache.common.MongoEntity;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@MongoEntity(collection="songs")
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class Song extends PanacheMongoEntity {
+    public String title;
+    public String artistName;
+    public LocalDateTime createdAt;
+}
