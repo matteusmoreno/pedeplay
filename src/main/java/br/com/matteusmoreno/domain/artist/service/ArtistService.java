@@ -3,19 +3,20 @@ package br.com.matteusmoreno.domain.artist.service;
 import br.com.matteusmoreno.domain.address.Address;
 import br.com.matteusmoreno.domain.address.AddressService;
 import br.com.matteusmoreno.domain.artist.Artist;
-import br.com.matteusmoreno.domain.artist.request.AddSongRequest;
+import br.com.matteusmoreno.domain.artist.request.AddSongOrRemoveRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
 import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.*;
-import br.com.matteusmoreno.infrastructure.viacep.ViaCepClient;
-import br.com.matteusmoreno.infrastructure.viacep.ViaCepResponse;
+import br.com.matteusmoreno.infrastructure.image.ImageService;
 import br.com.matteusmoreno.security.SecurityService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.bson.types.ObjectId;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,13 +28,15 @@ public class ArtistService {
     private final PlanService planService;
     private final SecurityService securityService;
     private final AddressService addressService;
+    private final ImageService imageService;
 
 
-    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService, AddressService addressService) {
+    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService, AddressService addressService, ImageService imageService) {
         this.subscriptionService = subscriptionService;
         this.planService = planService;
         this.securityService = securityService;
         this.addressService = addressService;
+        this.imageService = imageService;
     }
 
     // CREATE A NEW ARTIST
@@ -53,7 +56,7 @@ public class ArtistService {
                 .password(hashedPassword)
                 .biography(request.biography())
                 .balance(BigDecimal.ZERO)
-                .profileImageUrl(request.profileImageUrl())
+                .profileImageUrl(null)
                 .profileQrCodeUrl("")
                 .address(address)
                 .socialLinks(request.socialLinks())
@@ -63,6 +66,9 @@ public class ArtistService {
                 .updatedAt(LocalDateTime.now())
                 .deletedAt(null)
                 .build();
+
+        artist.address.complement = request.complement();
+        artist.address.number = request.number();
 
         artist.persist();
         return artist;
@@ -81,7 +87,50 @@ public class ArtistService {
         return Artist.findAll(Sort.ascending("name")).page(page, size).list();
     }
 
+    // UPLOAD OR UPDATE ARTIST PROFILE IMAGE
+    public Artist uploadOrUpdateProfileImage(ObjectId artistId, InputStream imageStream) throws IOException {
+        Artist artist = getArtistById(artistId);
+
+        // O ID do artista será o identificador único da imagem no Cloudinary.
+        // Isso garante que cada artista tenha apenas uma imagem de perfil.
+        String publicId = artist.id.toString();
+
+        String imageUrl = imageService.uploadImage(imageStream.readAllBytes(), publicId);
+
+        artist.profileImageUrl = imageUrl;
+        artist.updatedAt = LocalDateTime.now();
+        artist.update();
+
+        return artist;
+    }
+
     // UPDATE ARTIST DETAILS
+    public Artist updateArtist(UpdateArtistRequest request) {
+        Artist artist = getArtistById(request.id());
+
+        if (request.name() != null) artist.name = request.name();
+        if (request.biography() != null) artist.biography = request.biography();
+
+
+        if (request.email() != null && !request.email().equals(artist.email)) {
+            Artist.find("email", request.email()).firstResultOptional().ifPresent(existingArtist -> {
+                throw new EmailAlreadyExistsException("Email '" + request.email() + "' is already in use.");
+            });
+            artist.email = request.email();
+            artist.emailVerified = false; // Requer nova verificação de email
+        }
+
+        if (request.cep() != null) artist.address = addressService.getAddressByCep(request.cep());
+        if (request.number() != null) artist.address.number = request.number();
+        if (request.complement() != null) artist.address.complement = request.complement();
+        if (request.socialLinks() != null) artist.socialLinks = request.socialLinks();
+
+
+        artist.updatedAt = LocalDateTime.now();
+        artist.update();
+
+        return artist;
+    }
 
     // DISABLE ARTIST ACCOUNT
     public void disableArtist(ObjectId artistId) {
@@ -110,7 +159,7 @@ public class ArtistService {
     }
 
     // ADD SONGS TO ARTIST'S REPERTOIRE WITH SUBSCRIPTION LIMIT CHECK
-    public Artist addSongsToRepertoire(AddSongRequest request) {
+    public Artist addSongsToRepertoire(AddSongOrRemoveRequest request) {
         Artist artist = getArtistById(request.artistId());
 
         Integer songLimit = planService.getSongLimitForPlan(artist.subscription.planType);
@@ -125,4 +174,15 @@ public class ArtistService {
 
         return artist;
     }
+
+    // REMOVE SONGS FROM ARTIST'S REPERTOIRE
+    public Artist removeSongsFromRepertoire(AddSongOrRemoveRequest request) {
+        Artist artist = getArtistById(request.artistId());
+
+        artist.repertoire.removeAll(request.songIds());
+        artist.update();
+
+        return artist;
+    }
+
 }

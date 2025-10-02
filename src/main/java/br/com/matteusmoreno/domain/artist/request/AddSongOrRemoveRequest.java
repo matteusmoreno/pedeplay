@@ -5,7 +5,7 @@ import org.bson.types.ObjectId;
 
 import java.util.List;
 
-public record AddSongRequest(
+public record AddSongOrRemoveRequest(
         @NotNull(message = "Artist ID cannot be null")
         ObjectId artistId,
         @NotNull(message = "Song IDs cannot be null")

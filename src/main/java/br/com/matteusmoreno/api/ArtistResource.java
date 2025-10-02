@@ -1,17 +1,21 @@
 package br.com.matteusmoreno.api;
 
 import br.com.matteusmoreno.domain.artist.Artist;
-import br.com.matteusmoreno.domain.artist.request.AddSongRequest;
+import br.com.matteusmoreno.domain.artist.request.AddSongOrRemoveRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
+import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.artist.response.ArtistDetailsResponse;
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
+import br.com.matteusmoreno.infrastructure.image.FileUploadRequest;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 import org.bson.types.ObjectId;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 
@@ -51,6 +55,30 @@ public class ArtistResource {
         return Response.ok(response).build();
     }
 
+    @PATCH
+    @Path("/profile-image/{id}")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public Response uploadProfileImage(@PathParam("id") String id, @BeanParam FileUploadRequest formData) {
+        try {
+            if (formData.file == null) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("Image file is required.").build();
+            }
+            Artist artist = artistService.uploadOrUpdateProfileImage(new ObjectId(id), formData.file);
+            return Response.ok(new ArtistDetailsResponse(artist)).build();
+
+        } catch (IOException e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("Error processing file upload: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @PUT
+    public Response updateArtist(@Valid UpdateArtistRequest request) {
+        Artist artist = artistService.updateArtist(request);
+
+        return Response.ok(new ArtistDetailsResponse(artist)).build();
+    }
 
     @DELETE
     @Path("/disable/{artistId}")
@@ -69,9 +97,17 @@ public class ArtistResource {
     }
 
     @PATCH
-    @Path("/repertoire")
-    public Response addSongsToRepertoire(@Valid AddSongRequest request) {
+    @Path("/repertoire/add")
+    public Response addSongsToRepertoire(@Valid AddSongOrRemoveRequest request) {
         Artist artist = artistService.addSongsToRepertoire(request);
+
+        return Response.ok(new ArtistDetailsResponse(artist)).build();
+    }
+
+    @PATCH
+    @Path("/repertoire/remove")
+    public Response removeSongsFromRepertoire(@Valid AddSongOrRemoveRequest request) {
+        Artist artist = artistService.removeSongsFromRepertoire(request);
 
         return Response.ok(new ArtistDetailsResponse(artist)).build();
     }
