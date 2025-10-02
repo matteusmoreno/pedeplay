@@ -1,6 +1,8 @@
 package br.com.matteusmoreno.domain.show.service;
 
-import br.com.matteusmoreno.api.ShowWebSocket;
+import br.com.matteusmoreno.api.websocket.ShowWebSocket;
+import br.com.matteusmoreno.api.websocket.dto.NewSongRequestNotification;
+import br.com.matteusmoreno.api.websocket.dto.RequestStatusUpdateNotification;
 import br.com.matteusmoreno.domain.artist.Artist;
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
 import br.com.matteusmoreno.domain.show.ShowEvent;
@@ -8,20 +10,24 @@ import br.com.matteusmoreno.domain.show.SongRequest;
 import br.com.matteusmoreno.domain.show.constant.RequestStatus;
 import br.com.matteusmoreno.domain.show.constant.ShowStatus;
 import br.com.matteusmoreno.domain.show.request.MakeSongRequest;
+import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
 import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.service.SongService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.ShowConflictException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Objects;
 
 @ApplicationScoped
+@Slf4j
 public class ShowService {
 
     private final ArtistService artistService;
@@ -70,63 +76,74 @@ public class ShowService {
     }
 
     public ShowEvent makeSongRequest(MakeSongRequest request) throws Exception {
-        // 1. Encontra o show ativo do artista
+        Artist artist = artistService.getArtistById(request.artistId());
         ShowEvent activeShow = ShowEvent.<ShowEvent>find("artistId = ?1 and status = ?2", request.artistId(), ShowStatus.ACTIVE)
                 .firstResultOptional()
                 .orElseThrow(() -> new ShowConflictException("Artist does not have an active show."));
 
-        // 2. Busca os detalhes da música
-        Song song = songService.getSongById(request.songId());
+        subscriptionService.verifyAndIncrementRequestUsage(artist);
+
+        // Define a gorjeta como ZERO se ela vier nula (pedido gratuito)
+        BigDecimal tipAmount = Objects.requireNonNullElse(request.tipAmount(), BigDecimal.ZERO);
 
         // --- PONTO DE INTEGRAÇÃO COM PAGAMENTO ---
-        // Aqui você chamaria um PaymentService para processar a gorjeta (tipAmount).
-        // A lógica abaixo só executaria após a confirmação do pagamento.
-        // Por enquanto, vamos simular que o pagamento foi um sucesso.
-        // ObjectId paymentId = paymentService.processTip(request);
+        // Se a gorjeta for maior que zero, aqui você iniciaria o fluxo de pagamento.
+        // O status ficaria "PENDING_PAYMENT" e só mudaria para "PENDING" no webhook.
+        // Por enquanto, vamos adicionar todos os pedidos direto na fila.
 
-        // 3. Cria o objeto SongRequest
-        SongRequest newSongRequest = new SongRequest();
-        newSongRequest.requestId = new ObjectId(); // ID único para o pedido
-        newSongRequest.songTitle = song.title;
-        newSongRequest.songArtist = song.artistName;
-        newSongRequest.tipAmount = request.tipAmount();
-        newSongRequest.clientMessage = request.clientMessage();
-        newSongRequest.status = RequestStatus.PAID; // Assume que foi pago
-        newSongRequest.receivedAt = LocalDateTime.now();
-        // newSongRequest.paymentId = paymentId;
+        SongRequest newSongRequest = createSongRequest(request);
 
-        // 4. Adiciona o pedido ao show e atualiza os totais
         activeShow.requests.add(newSongRequest);
-        activeShow.totalTipsValue = activeShow.totalTipsValue.add(request.tipAmount());
+        activeShow.totalTipsValue = activeShow.totalTipsValue.add(tipAmount);
         activeShow.totalRequests = activeShow.requests.size();
 
         activeShow.update();
+        artist.update();
 
-        // 5. Notifica o artista em tempo real via WebSocket
-        String jsonMessage = new ObjectMapper().writeValueAsString(newSongRequest);
-        showWebSocket.sendToArtist(request.artistId().toString(), jsonMessage);
+        try {
+            NewSongRequestNotification notification = new NewSongRequestNotification(newSongRequest);
+            String jsonMessage = new ObjectMapper().writeValueAsString(notification);
+            showWebSocket.sendToArtist(request.artistId().toString(), jsonMessage);
+        } catch (Exception e) {
+            log.error("Falha ao enviar notificação WebSocket de novo pedido para o artista {}: {}", request.artistId(), e.getMessage());
+        }
 
         return activeShow;
     }
 
-    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, RequestStatus newStatus) {
+    //UPDATE REQUEST STATUS (ex: TO_PLAYING, PLAYED, CANCELED)
+    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request) {
         ShowEvent showEvent = ShowEvent.findById(showId);
         if (showEvent == null) {
-            throw new ShowConflictException("Show not found.");
+            throw new ShowConflictException("Show not found with ID: ".concat(showId.toString()));
         }
 
-        // Encontra o pedido específico dentro da lista de pedidos do show
-        SongRequest songRequest = showEvent.requests.stream()
+        // Esta linha agora funciona, pois o campo 'requestId' existe
+        SongRequest songRequestToUpdate = showEvent.requests.stream()
                 .filter(req -> req.requestId.equals(requestId))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Song request not found in this show.")); // Exceção customizada aqui
+                .orElseThrow(() -> new RuntimeException("Song Request not found with ID: " + requestId));
 
-        songRequest.status = newStatus;
+        RequestStatus newStatus = request.status();
+        if (newStatus != RequestStatus.PLAYED && newStatus != RequestStatus.CANCELED) {
+            throw new IllegalArgumentException("Status can only be updated to PLAYED or CANCELED.");
+        }
+
+        songRequestToUpdate.status = newStatus;
         showEvent.update();
+
+        try {
+            RequestStatusUpdateNotification notification = new RequestStatusUpdateNotification(requestId, newStatus);
+            String jsonMessage = new ObjectMapper().writeValueAsString(notification);
+            showWebSocket.sendToArtist(showEvent.artistId.toString(), jsonMessage);
+        } catch (Exception e) {
+            log.error("Falha ao enviar notificação WebSocket de atualização de status para o artista {}: {}", showEvent.artistId, e.getMessage());
+        }
 
         return showEvent;
     }
 
+    //PRIVATE METHODS
     private ShowEvent createNewShowEvent(ObjectId artistId) {
         return ShowEvent.builder()
                 .artistId(artistId)
@@ -136,6 +153,30 @@ public class ShowService {
                 .requests(new ArrayList<>())
                 .totalRequests(0)
                 .durationInSeconds(0)
+                .build();
+    }
+
+    private SongRequest createSongRequest(MakeSongRequest request) {
+        String songTitle = "Dedicatória";
+        String songArtist = " ";
+
+        if (request.songId() != null) {
+            Song song = songService.getSongById(request.songId());
+            songTitle = song.title;
+            songArtist = song.artistName;
+        }
+
+        // A gorjeta agora é opcional, então tratamos o valor nulo
+        BigDecimal tipAmount = Objects.requireNonNullElse(request.tipAmount(), BigDecimal.ZERO);
+
+        return SongRequest.builder()
+                .requestId(new ObjectId())
+                .songTitle(songTitle)
+                .songArtist(songArtist)
+                .tipAmount(tipAmount)
+                .clientMessage(request.clientMessage())
+                .status(RequestStatus.PENDING)
+                .receivedAt(LocalDateTime.now())
                 .build();
     }
 }

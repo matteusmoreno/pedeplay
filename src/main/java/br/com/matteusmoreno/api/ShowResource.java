@@ -6,7 +6,10 @@ import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
 import br.com.matteusmoreno.domain.show.response.ShowDetailsResponse;
 import br.com.matteusmoreno.domain.show.service.ShowService;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.PATCH;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.core.Response;
 import org.bson.types.ObjectId;
 
@@ -36,18 +39,19 @@ public class ShowResource {
     @POST
     @Path("/request")
     public Response makeRequest(@Valid MakeSongRequest request) throws Exception {
-        showService.makeSongRequest(request);
-        return Response.status(Response.Status.ACCEPTED).entity("Request received and is being processed.").build();
+        ShowEvent showEvent = showService.makeSongRequest(request);
+        return Response.status(Response.Status.ACCEPTED).entity(new ShowDetailsResponse(showEvent)).build();
     }
 
     @PATCH
-    @Path("/{showId}/request/{requestId}")
+    @Path("/{showId}/requests/{requestId}/status")
     public Response updateRequestStatus(
             @PathParam("showId") String showId,
             @PathParam("requestId") String requestId,
             @Valid UpdateRequestStatus request) {
 
-        showService.updateRequestStatus(new ObjectId(showId), new ObjectId(requestId), request.status());
-        return Response.noContent().build();
+        ShowEvent showEvent = showService.updateRequestStatus(new ObjectId(showId), new ObjectId(requestId), request);
+
+        return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
     }
 }

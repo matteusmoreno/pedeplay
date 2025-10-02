@@ -74,4 +74,22 @@ public class SubscriptionService {
         // A persistência será feita no ArtistService depois.
         subscription.monthlyUsage.eventsUsed++;
     }
+
+    public void verifyAndIncrementRequestUsage(Artist artist) {
+        Subscription subscription = artist.subscription;
+        if (subscription == null || subscription.monthlyUsage == null) {
+            throw new IllegalStateException("Artista sem assinatura configurada.");
+        }
+
+        int limit = planService.getRequestLimitForPlan(subscription.planType);
+        int currentUsage = subscription.monthlyUsage.requestsReceived;
+
+        if (currentUsage >= limit) {
+            throw new SubscriptionLimitExceededException("Limite mensal de solicitações (" + limit + ") atingido para o plano " + subscription.planType);
+        }
+
+        // Se a verificação passar, apenas incrementa o contador.
+        // A persistência será feita no ArtistService depois.
+        subscription.monthlyUsage.requestsReceived++;
+    }
 }

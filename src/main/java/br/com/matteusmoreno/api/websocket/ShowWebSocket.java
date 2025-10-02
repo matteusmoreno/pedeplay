@@ -1,4 +1,4 @@
-package br.com.matteusmoreno.api;
+package br.com.matteusmoreno.api.websocket;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.websocket.OnClose;

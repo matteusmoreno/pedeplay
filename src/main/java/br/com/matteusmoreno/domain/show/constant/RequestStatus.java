@@ -1,7 +1,7 @@
 package br.com.matteusmoreno.domain.show.constant;
 
 public enum RequestStatus {
-    PAID,
+    PENDING,
     PLAYED,
-    SKIPPED
+    CANCELED
 }
