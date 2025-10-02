@@ -1,8 +1,8 @@
 package br.com.matteusmoreno.domain.artist;
 
-public class SocialLinks {
-    public String instagramUrl;
-    public String facebookUrl;
-    public String youtubeUrl;
-    public String linkedInUrl;
-}
+public record SocialLinks(
+     String instagramUrl,
+     String facebookUrl,
+     String youtubeUrl,
+     String linkedInUrl
+) {}

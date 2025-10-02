@@ -8,7 +8,9 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @MongoEntity(collection="artists")
@@ -17,18 +19,20 @@ import java.util.List;
 @Builder
 public class Artist extends PanacheMongoEntity {
 
-    public ObjectId artistId;
+    public ObjectId id;
     public String name;
     public String email;
+    public Boolean emailVerified;
     public String password;
+    public String biography;
+    public BigDecimal balance;
     public String profileImageUrl;
-    public List<ObjectId> repertoire;
+    public List<ObjectId> repertoire = new ArrayList<>();
     public String profileQrCodeUrl;
     public SocialLinks socialLinks;
+    public Subscription subscription;
     public Boolean active;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;
     public LocalDateTime deletedAt;
-    public Subscription subscription;
-
 }

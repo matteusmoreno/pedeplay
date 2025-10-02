@@ -9,8 +9,6 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @MongoEntity(collection="songs")
-@AllArgsConstructor
-@NoArgsConstructor
 @Builder
 public class Song extends PanacheMongoEntity {
     public String title;
