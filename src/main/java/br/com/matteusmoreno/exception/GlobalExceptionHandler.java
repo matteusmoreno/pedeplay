@@ -88,5 +88,16 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class InvalidCredentialsMapper implements ExceptionMapper<InvalidCredentialsException> {
+        @Override
+        public Response toResponse(InvalidCredentialsException exception) {
+            // Retorna 401 Unauthorized
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }

@@ -7,6 +7,7 @@ import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.artist.response.ArtistDetailsResponse;
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
 import br.com.matteusmoreno.infrastructure.image.FileUploadRequest;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
@@ -58,6 +59,7 @@ public class ArtistResource {
     @PATCH
     @Path("/profile-image/{id}")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @RolesAllowed("ARTIST")
     public Response uploadProfileImage(@PathParam("id") String id, @BeanParam FileUploadRequest formData) {
         try {
             if (formData.file == null) {
@@ -74,6 +76,7 @@ public class ArtistResource {
     }
 
     @PUT
+    @RolesAllowed("ARTIST")
     public Response updateArtist(@Valid UpdateArtistRequest request) {
         Artist artist = artistService.updateArtist(request);
 
@@ -82,6 +85,7 @@ public class ArtistResource {
 
     @DELETE
     @Path("/disable/{artistId}")
+    @RolesAllowed("ARTIST")
     public Response disableArtist(@PathParam("artistId") String artistId) {
         artistService.disableArtist(new ObjectId(artistId));
 
@@ -90,6 +94,7 @@ public class ArtistResource {
 
     @PATCH
     @Path("/enable/{artistId}")
+    @RolesAllowed("ARTIST")
     public Response enableArtist(@PathParam("artistId") String artistId) {
         artistService.enableArtist(new ObjectId(artistId));
 
@@ -98,6 +103,7 @@ public class ArtistResource {
 
     @PATCH
     @Path("/repertoire/add")
+    @RolesAllowed("ARTIST")
     public Response addSongsToRepertoire(@Valid AddSongOrRemoveRequest request) {
         Artist artist = artistService.addSongsToRepertoire(request);
 
@@ -106,6 +112,7 @@ public class ArtistResource {
 
     @PATCH
     @Path("/repertoire/remove")
+    @RolesAllowed("ARTIST")
     public Response removeSongsFromRepertoire(@Valid AddSongOrRemoveRequest request) {
         Artist artist = artistService.removeSongsFromRepertoire(request);
 

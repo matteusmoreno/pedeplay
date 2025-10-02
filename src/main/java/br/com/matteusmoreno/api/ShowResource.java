@@ -5,6 +5,7 @@ import br.com.matteusmoreno.domain.show.request.MakeSongRequest;
 import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
 import br.com.matteusmoreno.domain.show.response.ShowDetailsResponse;
 import br.com.matteusmoreno.domain.show.service.ShowService;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
@@ -24,6 +25,7 @@ public class ShowResource {
 
     @POST
     @Path("/start/{artistId}")
+    @RolesAllowed("ARTIST")
     public Response startShow(@PathParam("artistId") String artistId) {
         ShowEvent showEvent = showService.startShow(new ObjectId(artistId));
         return Response.status(Response.Status.CREATED).entity(new ShowDetailsResponse(showEvent)).build();
@@ -31,6 +33,7 @@ public class ShowResource {
 
     @PATCH
     @Path("/end/{showId}")
+    @RolesAllowed("ARTIST")
     public Response endShow(@PathParam("showId") String showId) {
         ShowEvent showEvent = showService.endShow(new ObjectId(showId));
         return Response.ok(new ShowDetailsResponse(showEvent)).build();
@@ -45,6 +48,7 @@ public class ShowResource {
 
     @PATCH
     @Path("/{showId}/requests/{requestId}/status")
+    @RolesAllowed("ARTIST")
     public Response updateRequestStatus(
             @PathParam("showId") String showId,
             @PathParam("requestId") String requestId,

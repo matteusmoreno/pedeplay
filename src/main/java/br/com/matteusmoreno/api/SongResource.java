@@ -5,6 +5,7 @@ import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.request.UpdateSongRequest;
 import br.com.matteusmoreno.domain.song.response.SongDetailsResponse;
 import br.com.matteusmoreno.domain.song.service.SongService;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
@@ -25,6 +26,7 @@ public class SongResource {
     }
 
     @POST
+    @RolesAllowed("ARTIST")
     public Response create(@Valid CreateSongRequest request, @Context UriInfo uriInfo) {
         Song song = songService.createOrFindSong(request);
         URI uri = uriInfo.getAbsolutePathBuilder().path(String.valueOf(song.id)).build();
@@ -53,6 +55,7 @@ public class SongResource {
 
     @PUT
     @Path("/update")
+    @RolesAllowed("ARTIST")
     public Response updateSong(@Valid UpdateSongRequest request) {
         Song song = songService.updateSong(request);
 
@@ -61,6 +64,7 @@ public class SongResource {
 
     @DELETE
     @Path("/delete/{songId}")
+    @RolesAllowed("ARTIST")
     public Response deleteSong(@PathParam("songId") String songId) {
         songService.deleteSong(new ObjectId(songId));
 
