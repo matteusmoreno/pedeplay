@@ -1,4 +1,4 @@
-package br.com.matteusmoreno;
+package br.com.matteusmoreno.domain.show;
 
 import org.bson.types.ObjectId;
 import java.math.BigDecimal;

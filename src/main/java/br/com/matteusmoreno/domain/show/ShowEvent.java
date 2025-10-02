@@ -1,4 +1,4 @@
-package br.com.matteusmoreno;
+package br.com.matteusmoreno.domain.show;
 
 import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import io.quarkus.mongodb.panache.common.MongoEntity;

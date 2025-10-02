@@ -1,5 +1,6 @@
-package br.com.matteusmoreno;
+package br.com.matteusmoreno.domain.artist;
 
+import br.com.matteusmoreno.domain.subscription.Subscription;
 import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import io.quarkus.mongodb.panache.common.MongoEntity;
 import lombok.AllArgsConstructor;
@@ -23,6 +24,7 @@ public class Artist extends PanacheMongoEntity {
     public String profileImageUrl;
     public List<ObjectId> repertoire;
     public String profileQrCodeUrl;
+    public SocialLinks socialLinks;
     public Boolean active;
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;

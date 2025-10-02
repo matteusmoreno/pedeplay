@@ -1,4 +1,4 @@
-package br.com.matteusmoreno;
+package br.com.matteusmoreno.payment;
 
 public enum PaymentStatus {
     PENDING,
