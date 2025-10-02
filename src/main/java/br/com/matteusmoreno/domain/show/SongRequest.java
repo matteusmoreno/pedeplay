@@ -1,5 +1,6 @@
 package br.com.matteusmoreno.domain.show;
 
+import br.com.matteusmoreno.domain.show.constant.RequestStatus;
 import org.bson.types.ObjectId;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

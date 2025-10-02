@@ -77,5 +77,16 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class ShowConflictMapper implements ExceptionMapper<ShowConflictException> {
+        @Override
+        public Response toResponse(ShowConflictException exception) {
+            // Retorna um status 409 Conflict
+            return Response.status(Response.Status.CONFLICT)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }
