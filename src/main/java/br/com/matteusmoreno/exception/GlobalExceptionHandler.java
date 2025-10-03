@@ -2,6 +2,7 @@ package br.com.matteusmoreno.exception;
 
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.ext.Provider;
 
 @Provider
@@ -92,8 +93,17 @@ public class GlobalExceptionHandler {
     public static class InvalidCredentialsMapper implements ExceptionMapper<InvalidCredentialsException> {
         @Override
         public Response toResponse(InvalidCredentialsException exception) {
-            // Retorna 401 Unauthorized
             return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
+    @Provider
+    public static class ForbiddenMapper implements ExceptionMapper<ForbiddenException> {
+        @Override
+        public Response toResponse(ForbiddenException exception) {
+            return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse(exception.getMessage()))
                     .build();
         }

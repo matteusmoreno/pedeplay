@@ -17,6 +17,7 @@ import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.ShowConflictException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.ForbiddenException;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 
@@ -42,7 +43,8 @@ public class ShowService {
         this.songService = songService;
     }
 
-    public ShowEvent startShow(ObjectId artistId) {
+    public ShowEvent startShow(ObjectId artistId, String loggedInArtistId) {
+        if (!artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only start a show for yourself.");
         Artist artist = artistService.getArtistById(artistId);
 
         long activeShows = ShowEvent.count("artistId = ?1 and status = ?2", artist.id, ShowStatus.ACTIVE);
@@ -58,9 +60,11 @@ public class ShowService {
         return showEvent;
     }
 
-    public ShowEvent endShow(ObjectId showId) {
+    public ShowEvent endShow(ObjectId showId, String loggedInArtistId) {
         ShowEvent showEvent = ShowEvent.findById(showId);
         if (showEvent == null || showEvent.status == ShowStatus.FINISHED) throw new ShowConflictException("Show not found or already finished.");
+
+        if (!showEvent.artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only end your own show.");
 
         LocalDateTime endTime = LocalDateTime.now();
         long duration = Duration.between(showEvent.startTime, endTime).toSeconds();
@@ -112,11 +116,14 @@ public class ShowService {
     }
 
     //UPDATE REQUEST STATUS (ex: TO_PLAYING, PLAYED, CANCELED)
-    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request) {
+    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request, String loggedInArtistId) {
         ShowEvent showEvent = ShowEvent.findById(showId);
         if (showEvent == null) {
-            throw new ShowConflictException("Show not found with ID: ".concat(showId.toString()));
+            throw new ShowConflictException("Show not found with ID: ".concat(showId.toString())); // depois fazer um metodo separado
         }
+
+        if (!showEvent.artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only update requests for your own show.");
+
 
         // Esta linha agora funciona, pois o campo 'requestId' existe
         SongRequest songRequestToUpdate = showEvent.requests.stream()

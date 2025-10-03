@@ -6,28 +6,30 @@ import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
 import br.com.matteusmoreno.domain.show.response.ShowDetailsResponse;
 import br.com.matteusmoreno.domain.show.service.ShowService;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.PATCH;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import org.bson.types.ObjectId;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Path("/shows")
 public class ShowResource {
 
     private final ShowService showService;
+    private final JsonWebToken jwt;
 
-    public ShowResource(ShowService showService) {
+    public ShowResource(ShowService showService, JsonWebToken jwt) {
         this.showService = showService;
+        this.jwt = jwt;
     }
 
     @POST
     @Path("/start/{artistId}")
     @RolesAllowed("ARTIST")
     public Response startShow(@PathParam("artistId") String artistId) {
-        ShowEvent showEvent = showService.startShow(new ObjectId(artistId));
+        String loggedInArtistId = jwt.getSubject();
+        ShowEvent showEvent = showService.startShow(new ObjectId(artistId), loggedInArtistId);
         return Response.status(Response.Status.CREATED).entity(new ShowDetailsResponse(showEvent)).build();
     }
 
@@ -35,7 +37,8 @@ public class ShowResource {
     @Path("/end/{showId}")
     @RolesAllowed("ARTIST")
     public Response endShow(@PathParam("showId") String showId) {
-        ShowEvent showEvent = showService.endShow(new ObjectId(showId));
+        String loggedInArtistId = jwt.getSubject();
+        ShowEvent showEvent = showService.endShow(new ObjectId(showId), loggedInArtistId);
         return Response.ok(new ShowDetailsResponse(showEvent)).build();
     }
 
@@ -54,7 +57,8 @@ public class ShowResource {
             @PathParam("requestId") String requestId,
             @Valid UpdateRequestStatus request) {
 
-        ShowEvent showEvent = showService.updateRequestStatus(new ObjectId(showId), new ObjectId(requestId), request);
+        String loggedInArtistId = jwt.getSubject();
+        ShowEvent showEvent = showService.updateRequestStatus(new ObjectId(showId), new ObjectId(requestId), request, loggedInArtistId);
 
         return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
     }

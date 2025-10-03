@@ -13,6 +13,7 @@ import br.com.matteusmoreno.infrastructure.image.ImageService;
 import br.com.matteusmoreno.security.SecurityService;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.ForbiddenException;
 import org.bson.types.ObjectId;
 
 import java.io.IOException;
@@ -88,7 +89,9 @@ public class ArtistService {
     }
 
     // UPLOAD OR UPDATE ARTIST PROFILE IMAGE
-    public Artist uploadOrUpdateProfileImage(ObjectId artistId, InputStream imageStream) throws IOException {
+    public Artist uploadOrUpdateProfileImage(ObjectId artistId, InputStream imageStream, String loggedInArtistId) throws IOException {
+        verifyOwnership(artistId, loggedInArtistId);
+
         Artist artist = getArtistById(artistId);
 
         // O ID do artista será o identificador único da imagem no Cloudinary.
@@ -105,7 +108,8 @@ public class ArtistService {
     }
 
     // UPDATE ARTIST DETAILS
-    public Artist updateArtist(UpdateArtistRequest request) {
+    public Artist updateArtist(UpdateArtistRequest request, String loggedInArtistId) {
+        verifyOwnership(request.id(), loggedInArtistId);
         Artist artist = getArtistById(request.id());
 
         if (request.name() != null) artist.name = request.name();
@@ -133,7 +137,8 @@ public class ArtistService {
     }
 
     // DISABLE ARTIST ACCOUNT
-    public void disableArtist(ObjectId artistId) {
+    public void disableArtist(ObjectId artistId, String loggedInArtistId) {
+        verifyOwnership(artistId, loggedInArtistId);
         Artist artist = getArtistById(artistId);
 
         if (!artist.active) throw new ArtistAlreadyDisabledException("Artist with ID: " + artistId + " is already disabled.");
@@ -146,7 +151,8 @@ public class ArtistService {
     }
 
     // ENABLE ARTIST ACCOUNT
-    public void enableArtist(ObjectId artistId) {
+    public void enableArtist(ObjectId artistId, String loggedInArtistId) {
+        verifyOwnership(artistId, loggedInArtistId);
         Artist artist = getArtistById(artistId);
 
         if (artist.active) throw new ArtistAlreadyEnabledException("Artist with ID: " + artistId + " is already enabled.");
@@ -159,7 +165,8 @@ public class ArtistService {
     }
 
     // ADD SONGS TO ARTIST'S REPERTOIRE WITH SUBSCRIPTION LIMIT CHECK
-    public Artist addSongsToRepertoire(AddSongOrRemoveRequest request) {
+    public Artist addSongsToRepertoire(AddSongOrRemoveRequest request, String loggedInArtistId) {
+        verifyOwnership(request.artistId(), loggedInArtistId);
         Artist artist = getArtistById(request.artistId());
 
         Integer songLimit = planService.getSongLimitForPlan(artist.subscription.planType);
@@ -176,13 +183,21 @@ public class ArtistService {
     }
 
     // REMOVE SONGS FROM ARTIST'S REPERTOIRE
-    public Artist removeSongsFromRepertoire(AddSongOrRemoveRequest request) {
+    public Artist removeSongsFromRepertoire(AddSongOrRemoveRequest request, String loggedInArtistId) {
+        verifyOwnership(request.artistId(), loggedInArtistId);
         Artist artist = getArtistById(request.artistId());
 
         artist.repertoire.removeAll(request.songIds());
         artist.update();
 
         return artist;
+    }
+
+    // PRIVATE METHODS
+    private void verifyOwnership(ObjectId resourceArtistId, String loggedInArtistId) {
+        if (!resourceArtistId.equals(new ObjectId(loggedInArtistId))) {
+            throw new ForbiddenException("Operation not allowed. You can only modify your own data.");
+        }
     }
 
 }
