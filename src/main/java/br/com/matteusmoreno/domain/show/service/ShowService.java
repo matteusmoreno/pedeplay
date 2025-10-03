@@ -138,6 +138,13 @@ public class ShowService {
                 .list();
     }
 
+    // PEGA O ÚLTIMO SHOW ATIVO DE UM ARTISTA
+    public ShowEvent getActiveShowByArtist(ObjectId artistId) {
+        return ShowEvent.<ShowEvent>find("artistId = ?1 and status = ?2", artistId, ShowStatus.ACTIVE)
+                .firstResultOptional()
+                .orElse(null);
+    }
+
     //UPDATE REQUEST STATUS (ex: PLAYED, CANCELED)
     public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request, String loggedInArtistId) {
         ShowEvent showEvent = getShowEventById(showId);

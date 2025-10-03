@@ -67,6 +67,14 @@ public class ShowResource {
         return Response.ok(shows).build();
     }
 
+    @GET
+    @Path("/active/{artistId}")
+    public Response getActiveShowByArtist(@PathParam("artistId") String artistId) {
+        ShowEvent showEvent = showService.getActiveShowByArtist(new ObjectId(artistId));
+
+        return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
+    }
+
     @POST
     @Path("/request")
     public Response makeRequest(@Valid MakeSongRequest request) throws Exception {
