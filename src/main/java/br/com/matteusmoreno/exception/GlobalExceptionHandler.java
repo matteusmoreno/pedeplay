@@ -109,5 +109,15 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class ShowEventNotFoundMapper implements ExceptionMapper<ShowEventNotFoundException> {
+        @Override
+        public Response toResponse(ShowEventNotFoundException exception) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }

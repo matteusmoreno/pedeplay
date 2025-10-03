@@ -15,6 +15,7 @@ import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.service.SongService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.ShowConflictException;
+import br.com.matteusmoreno.exception.ShowEventNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ForbiddenException;
@@ -43,6 +44,7 @@ public class ShowService {
         this.songService = songService;
     }
 
+    // INICIA MODO SHOW
     public ShowEvent startShow(ObjectId artistId, String loggedInArtistId) {
         if (!artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only start a show for yourself.");
         Artist artist = artistService.getArtistById(artistId);
@@ -60,6 +62,7 @@ public class ShowService {
         return showEvent;
     }
 
+    // FINALIZA MODO SHOW
     public ShowEvent endShow(ObjectId showId, String loggedInArtistId) {
         ShowEvent showEvent = ShowEvent.findById(showId);
         if (showEvent == null || showEvent.status == ShowStatus.FINISHED) throw new ShowConflictException("Show not found or already finished.");
@@ -79,6 +82,7 @@ public class ShowService {
         return showEvent;
     }
 
+    // FAZ PEDIDO DE MÚSICA
     public ShowEvent makeSongRequest(MakeSongRequest request) throws Exception {
         Artist artist = artistService.getArtistById(request.artistId());
         ShowEvent activeShow = ShowEvent.<ShowEvent>find("artistId = ?1 and status = ?2", request.artistId(), ShowStatus.ACTIVE)
@@ -115,12 +119,16 @@ public class ShowService {
         return activeShow;
     }
 
-    //UPDATE REQUEST STATUS (ex: TO_PLAYING, PLAYED, CANCELED)
-    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request, String loggedInArtistId) {
+    public ShowEvent getShowEventById(ObjectId showId) {
         ShowEvent showEvent = ShowEvent.findById(showId);
-        if (showEvent == null) {
-            throw new ShowConflictException("Show not found with ID: ".concat(showId.toString())); // depois fazer um metodo separado
-        }
+        if (showEvent == null) throw new ShowEventNotFoundException("Show not found with ID: ".concat(showId.toString()));
+
+        return showEvent;
+    }
+
+    //UPDATE REQUEST STATUS (ex: PLAYED, CANCELED)
+    public ShowEvent updateRequestStatus(ObjectId showId, ObjectId requestId, UpdateRequestStatus request, String loggedInArtistId) {
+        ShowEvent showEvent = getShowEventById(showId);
 
         if (!showEvent.artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only update requests for your own show.");
 

@@ -42,6 +42,13 @@ public class ShowResource {
         return Response.ok(new ShowDetailsResponse(showEvent)).build();
     }
 
+    @GET
+    @Path("/{showId}")
+    public Response getShowDetails(@PathParam("showId") String showId) {
+        ShowEvent showEvent = showService.getShowEventById(new ObjectId(showId));
+        return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
+    }
+
     @POST
     @Path("/request")
     public Response makeRequest(@Valid MakeSongRequest request) throws Exception {
