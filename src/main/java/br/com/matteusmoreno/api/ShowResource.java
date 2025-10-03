@@ -13,6 +13,8 @@ import jakarta.ws.rs.core.Response;
 import org.bson.types.ObjectId;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
+import java.util.List;
+
 @Path("/shows")
 public class ShowResource {
 
@@ -47,6 +49,22 @@ public class ShowResource {
     public Response getShowDetails(@PathParam("showId") String showId) {
         ShowEvent showEvent = showService.getShowEventById(new ObjectId(showId));
         return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
+    }
+
+    @GET
+    @Path("/all/{artistId}")
+    @RolesAllowed("ARTIST")
+    public Response getAllShowsByArtist(@QueryParam("page") @DefaultValue("0") int page,
+                                        @QueryParam("size") @DefaultValue("10") int size,
+                                        @PathParam("artistId") String artistId) {
+
+        String loggedInArtistId = jwt.getSubject();
+        List<ShowDetailsResponse> shows = showService.getAllShowsByArtist(page, size, new ObjectId(artistId), loggedInArtistId)
+                .stream()
+                .map(ShowDetailsResponse::new)
+                .toList();
+
+        return Response.ok(shows).build();
     }
 
     @POST

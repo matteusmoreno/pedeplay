@@ -11,6 +11,7 @@ import br.com.matteusmoreno.domain.show.constant.RequestStatus;
 import br.com.matteusmoreno.domain.show.constant.ShowStatus;
 import br.com.matteusmoreno.domain.show.request.MakeSongRequest;
 import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
+import br.com.matteusmoreno.domain.show.response.ShowDetailsResponse;
 import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.service.SongService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @ApplicationScoped
@@ -119,11 +121,21 @@ public class ShowService {
         return activeShow;
     }
 
+    // DETALHES DO SHOW POR ID
     public ShowEvent getShowEventById(ObjectId showId) {
         ShowEvent showEvent = ShowEvent.findById(showId);
         if (showEvent == null) throw new ShowEventNotFoundException("Show not found with ID: ".concat(showId.toString()));
 
         return showEvent;
+    }
+
+    // LISTAGEM DE TODOS OS SHOWS DE UM ARTISTA
+    public List<ShowEvent> getAllShowsByArtist(int page, int size, ObjectId artistId, String loggedInArtistId) {
+        if (!artistId.equals(new ObjectId(loggedInArtistId))) throw new ForbiddenException("You can only view your own shows.");
+
+        return ShowEvent.find("artistId", artistId)
+                .page(page, size)
+                .list();
     }
 
     //UPDATE REQUEST STATUS (ex: PLAYED, CANCELED)
