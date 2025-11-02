@@ -71,6 +71,9 @@ public class ShowResource {
     @Path("/active/{artistId}")
     public Response getActiveShowByArtist(@PathParam("artistId") String artistId) {
         ShowEvent showEvent = showService.getActiveShowByArtist(new ObjectId(artistId));
+        if (showEvent == null) {
+          return Response.ok().entity(null).build();
+      }
 
         return Response.ok().entity(new ShowDetailsResponse(showEvent)).build();
     }
