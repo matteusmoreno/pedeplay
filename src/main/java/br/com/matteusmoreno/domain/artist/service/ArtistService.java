@@ -6,6 +6,9 @@ import br.com.matteusmoreno.domain.artist.Artist;
 import br.com.matteusmoreno.domain.artist.request.AddSongOrRemoveRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
 import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
+import br.com.matteusmoreno.domain.artist.response.ArtistRepertoireDetailsResponse;
+import br.com.matteusmoreno.domain.song.Song;
+import br.com.matteusmoreno.domain.song.response.SongDetailsResponse;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.*;
@@ -21,6 +24,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @ApplicationScoped
 public class ArtistService {
@@ -98,9 +102,7 @@ public class ArtistService {
         // Isso garante que cada artista tenha apenas uma imagem de perfil.
         String publicId = artist.id.toString();
 
-        String imageUrl = imageService.uploadImage(imageStream.readAllBytes(), publicId);
-
-        artist.profileImageUrl = imageUrl;
+        artist.profileImageUrl = imageService.uploadImage(imageStream.readAllBytes(), publicId);
         artist.updatedAt = LocalDateTime.now();
         artist.update();
 
@@ -180,6 +182,21 @@ public class ArtistService {
         artist.update();
 
         return artist;
+    }
+
+    public ArtistRepertoireDetailsResponse getRepertoireDetails(ObjectId artistId) {
+        Artist artist = getArtistById(artistId);
+
+        List<Song> songs = artist.repertoire.stream()
+                .map(songId -> (Song) Song.findById(songId))
+                .filter(Objects::nonNull)
+                .toList();
+
+        List<SongDetailsResponse> songDetails = songs.stream()
+                .map(SongDetailsResponse::new)
+                .toList();
+
+        return new ArtistRepertoireDetailsResponse(songDetails);
     }
 
     // REMOVE SONGS FROM ARTIST'S REPERTOIRE

@@ -5,6 +5,7 @@ import br.com.matteusmoreno.domain.artist.request.AddSongOrRemoveRequest;
 import br.com.matteusmoreno.domain.artist.request.CreateArtistRequest;
 import br.com.matteusmoreno.domain.artist.request.UpdateArtistRequest;
 import br.com.matteusmoreno.domain.artist.response.ArtistDetailsResponse;
+import br.com.matteusmoreno.domain.artist.response.ArtistRepertoireDetailsResponse;
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
 import br.com.matteusmoreno.infrastructure.image.FileUploadRequest;
 import jakarta.annotation.security.RolesAllowed;
@@ -127,5 +128,13 @@ public class ArtistResource {
         Artist artist = artistService.removeSongsFromRepertoire(request, loggedInArtistId);
 
         return Response.ok(new ArtistDetailsResponse(artist)).build();
+    }
+
+    @GET
+    @Path("/{artistId}/repertoire-details")
+    public Response getRepertoireDetails(@PathParam("artistId") String artistId) {
+        ArtistRepertoireDetailsResponse repertoire = artistService.getRepertoireDetails(new ObjectId(artistId));
+
+        return Response.ok(repertoire).build();
     }
 }
