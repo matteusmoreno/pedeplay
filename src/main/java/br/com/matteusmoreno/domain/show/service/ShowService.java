@@ -11,7 +11,6 @@ import br.com.matteusmoreno.domain.show.constant.RequestStatus;
 import br.com.matteusmoreno.domain.show.constant.ShowStatus;
 import br.com.matteusmoreno.domain.show.request.MakeSongRequest;
 import br.com.matteusmoreno.domain.show.request.UpdateRequestStatus;
-import br.com.matteusmoreno.domain.show.response.ShowDetailsResponse;
 import br.com.matteusmoreno.domain.song.Song;
 import br.com.matteusmoreno.domain.song.service.SongService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
@@ -20,15 +19,14 @@ import br.com.matteusmoreno.exception.ShowEventNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ForbiddenException;
-import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
-
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 
 @ApplicationScoped
 @Slf4j
@@ -38,12 +36,15 @@ public class ShowService {
     private final SubscriptionService subscriptionService;
     private final ShowWebSocket showWebSocket;
     private final SongService songService;
+    private final ObjectMapper objectMapper;
 
-    public ShowService(ArtistService artistService, SubscriptionService subscriptionService, ShowWebSocket showWebSocket, SongService songService) {
+    public ShowService(ArtistService artistService, SubscriptionService subscriptionService, ShowWebSocket showWebSocket, SongService songService,
+        ObjectMapper objectMapper) {
         this.artistService = artistService;
         this.subscriptionService = subscriptionService;
         this.showWebSocket = showWebSocket;
         this.songService = songService;
+      this.objectMapper = objectMapper;
     }
 
     // INICIA MODO SHOW
@@ -112,7 +113,7 @@ public class ShowService {
 
         try {
             NewSongRequestNotification notification = new NewSongRequestNotification(newSongRequest);
-            String jsonMessage = new ObjectMapper().writeValueAsString(notification);
+            String jsonMessage = objectMapper.writeValueAsString(notification);
             showWebSocket.sendToArtist(request.artistId().toString(), jsonMessage);
         } catch (Exception e) {
             log.error("Falha ao enviar notificação WebSocket de novo pedido para o artista {}: {}", request.artistId(), e.getMessage());
