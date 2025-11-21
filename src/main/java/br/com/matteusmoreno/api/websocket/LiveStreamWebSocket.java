@@ -1,0 +1,281 @@
+package br.com.matteusmoreno.api.websocket;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.websocket.*;
+import jakarta.websocket.server.PathParam;
+import jakarta.websocket.server.ServerEndpoint;
+import lombok.extern.slf4j.Slf4j;
+import org.json.JSONObject;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+
+/**
+ * WebSocket para sinalização WebRTC (signaling server)
+ * NÃO retransmite dados de vídeo - apenas facilita conexão P2P
+ */
+@ServerEndpoint("/livestream/{showId}/{userId}/{role}")
+@ApplicationScoped
+@Slf4j
+public class LiveStreamWebSocket {
+
+  private static final String ROLE_BROADCASTER = "broadcaster";
+  private static final String ROLE_VIEWER = "viewer";
+  private static final long COOLDOWN_MS = 5000;
+
+  // Mapa: showId -> Sessão do broadcaster
+  private static final Map<String, Session> broadcasters = new ConcurrentHashMap<>();
+
+  // Mapa: showId -> Set de sessões dos viewers
+  private static final Map<String, Set<Session>> viewers = new ConcurrentHashMap<>();
+
+  // Mapa: showId -> timestamp da última tentativa
+  private static final Map<String, Long> lastConnectionAttempt = new ConcurrentHashMap<>();
+
+  @OnOpen
+  public void onOpen(Session session,
+      @PathParam("showId") String showId,
+      @PathParam("userId") String userId,
+      @PathParam("role") String role) {
+
+    if (ROLE_BROADCASTER.equalsIgnoreCase(role)) {
+      String broadcasterKey = showId + ":" + userId;
+      long now = System.currentTimeMillis();
+
+      cleanOldAttempts();
+
+      Long lastAttempt = lastConnectionAttempt.get(broadcasterKey);
+
+      if (lastAttempt != null && (now - lastAttempt) < COOLDOWN_MS) {
+        long waitTime = COOLDOWN_MS - (now - lastAttempt);
+        log.warn("⚠️ COOLDOWN ATIVO - Artista {} tentando reconectar muito rápido ao show {}. Aguarde {} ms.",
+            userId, showId, waitTime);
+        try {
+          session.close(new CloseReason(
+              CloseReason.CloseCodes.TRY_AGAIN_LATER,
+              "Please wait " + waitTime + "ms before reconnecting"
+          ));
+        } catch (Exception e) {
+          log.debug("Erro ao fechar sessão: {}", e.getMessage());
+        }
+        return;
+      }
+
+      Session existingBroadcaster = broadcasters.get(showId);
+      if (existingBroadcaster != null && existingBroadcaster.isOpen()) {
+        log.warn("🚫 CONEXÃO REJEITADA - Broadcaster já ativo para o show {}. Frontend deve parar de tentar reconectar.", showId);
+        try {
+          session.close(new CloseReason(
+              CloseReason.CloseCodes.CANNOT_ACCEPT,
+              "Broadcaster already connected. Stop reconnecting."
+          ));
+        } catch (Exception e) {
+          log.debug("Erro ao fechar nova sessão: {}", e.getMessage());
+        }
+        return;
+      }
+
+      lastConnectionAttempt.put(broadcasterKey, now);
+      broadcasters.put(showId, session);
+      log.info("Broadcaster (Artista {}) conectado ao show {}", userId, showId);
+
+      notifyViewers(showId, "{\"type\":\"stream-started\",\"showId\":\"" + showId + "\"}");
+
+    } else if (ROLE_VIEWER.equalsIgnoreCase(role)) {
+      // Espectador se conectando
+      viewers.computeIfAbsent(showId, k -> new CopyOnWriteArraySet<>()).add(session);
+      log.info("Viewer (Usuário {}) conectado ao show {}", userId, showId);
+
+      Session broadcaster = broadcasters.get(showId);
+      if (broadcaster != null && broadcaster.isOpen()) {
+        // Notifica broadcaster que viewer entrou
+        String notificationMessage = String.format(
+            "{\"type\":\"viewer-joined\",\"viewerId\":\"%s\",\"showId\":\"%s\"}",
+            userId, showId
+        );
+        broadcaster.getAsyncRemote().sendText(notificationMessage);
+        log.info("📣 Notificado broadcaster sobre novo viewer: {}", userId);
+
+        // Notifica o viewer se já existe um broadcaster ativo
+        session.getAsyncRemote().sendText("{\"type\":\"broadcaster-ready\",\"showId\":\"" + showId + "\"}");
+      }
+    }
+  }
+
+  @OnMessage
+  public void onMessage(Session session, String message,
+      @PathParam("showId") String showId,
+      @PathParam("userId") String userId,
+      @PathParam("role") String role) {
+
+    if (ROLE_BROADCASTER.equalsIgnoreCase(role)) {
+      // Broadcaster enviando sinalização (WebRTC signaling)
+      try {
+        JSONObject json = new JSONObject(message);
+        String messageType = json.getString("type");
+
+        // Se a mensagem tem viewerId, envia apenas para aquele viewer
+        if (json.has("viewerId")) {
+          String targetViewerId = json.getString("viewerId");
+          sendToSpecificViewer(showId, targetViewerId, message);
+          log.debug("📤 Mensagem '{}' do broadcaster enviada para viewer: {}", messageType, targetViewerId);
+        } else {
+          // Retransmite para todos os viewers
+          notifyViewers(showId, message);
+          log.debug("📤 Mensagem '{}' do broadcaster retransmitida para todos viewers", messageType);
+        }
+
+      } catch (Exception e) {
+        log.error("Erro ao processar mensagem do broadcaster", e);
+      }
+
+    } else if (ROLE_VIEWER.equalsIgnoreCase(role)) {
+      // Viewer enviando sinalização de volta ao broadcaster
+      Session broadcaster = broadcasters.get(showId);
+      if (broadcaster != null && broadcaster.isOpen()) {
+        try {
+          // ✅✅✅ ADICIONA viewerId na mensagem ✅✅✅
+          JSONObject json = new JSONObject(message);
+          json.put("viewerId", userId);
+          broadcaster.getAsyncRemote().sendText(json.toString());
+          log.debug("📥 Mensagem de sinalização do viewer {} retransmitida para broadcaster", userId);
+        } catch (Exception e) {
+          log.error("Erro ao processar mensagem do viewer", e);
+        }
+      }
+    }
+  }
+
+  @OnClose
+  public void onClose(Session session,
+      @PathParam("showId") String showId,
+      @PathParam("userId") String userId,
+      @PathParam("role") String role) {
+
+    if (ROLE_BROADCASTER.equalsIgnoreCase(role)) {
+      String broadcasterKey = showId + ":" + userId;
+
+      Session currentBroadcaster = broadcasters.get(showId);
+      if (currentBroadcaster != null && currentBroadcaster.equals(session)) {
+        broadcasters.remove(showId);
+        lastConnectionAttempt.remove(broadcasterKey);
+        log.info("🔌 Broadcaster (Artista {}) desconectado do show {}", userId, showId);
+
+        notifyViewers(showId, "{\"type\":\"stream-ended\",\"showId\":\"" + showId + "\"}");
+      } else {
+        log.debug("Sessão de broadcaster fechada mas já foi substituída para o show {}", showId);
+      }
+
+    } else if (ROLE_VIEWER.equalsIgnoreCase(role)) {
+      Set<Session> showViewers = viewers.get(showId);
+      if (showViewers != null) {
+        showViewers.remove(session);
+        if (showViewers.isEmpty()) {
+          viewers.remove(showId);
+        }
+      }
+      log.info("🔌 Viewer (Usuário {}) desconectado do show {}", userId, showId);
+
+      // ✅ NOVO: Notifica broadcaster que viewer saiu
+      Session broadcaster = broadcasters.get(showId);
+      if (broadcaster != null && broadcaster.isOpen()) {
+        String notificationMessage = String.format(
+            "{\"type\":\"viewer-left\",\"viewerId\":\"%s\",\"showId\":\"%s\"}",
+            userId, showId
+        );
+        broadcaster.getAsyncRemote().sendText(notificationMessage);
+        log.debug("📣 Notificado broadcaster que viewer saiu: {}", userId);
+      }
+    }
+  }
+
+  @OnError
+  public void onError(Session session, Throwable throwable,
+      @PathParam("showId") String showId,
+      @PathParam("userId") String userId,
+      @PathParam("role") String role) {
+
+    log.error("❌ Erro no WebSocket - usuário: {}, show: {}, role: {}",
+        userId, showId, role, throwable);
+
+    if (ROLE_BROADCASTER.equalsIgnoreCase(role)) {
+      Session currentBroadcaster = broadcasters.get(showId);
+      if (currentBroadcaster != null && currentBroadcaster.equals(session)) {
+        broadcasters.remove(showId);
+        notifyViewers(showId, "{\"type\":\"stream-error\",\"showId\":\"" + showId + "\"}");
+      }
+    } else if (ROLE_VIEWER.equalsIgnoreCase(role)) {
+      Set<Session> showViewers = viewers.get(showId);
+      if (showViewers != null) {
+        showViewers.remove(session);
+      }
+    }
+  }
+
+  /**
+   * Envia mensagem para um viewer específico
+   */
+  private void sendToSpecificViewer(String showId, String viewerId, String message) {
+    Set<Session> showViewers = viewers.get(showId);
+    if (showViewers != null) {
+      for (Session viewer : showViewers) {
+        try {
+          // Extrai userId dos parâmetros da sessão
+          String pathUserId = viewer.getPathParameters().get("userId");
+
+          if (viewerId.equals(pathUserId) && viewer.isOpen()) {
+            viewer.getAsyncRemote().sendText(message);
+            log.debug("✉️ Mensagem enviada para viewer específico: {}", viewerId);
+            return;
+          }
+        } catch (Exception e) {
+          log.warn("Erro ao enviar mensagem para viewer: {}", viewerId, e);
+        }
+      }
+      log.warn("⚠️ Viewer não encontrado: {}", viewerId);
+    }
+  }
+
+  /**
+   * Notifica todos os viewers de um show
+   */
+  private void notifyViewers(String showId, String message) {
+    Set<Session> showViewers = viewers.get(showId);
+    if (showViewers != null) {
+      for (Session viewer : showViewers) {
+        if (viewer.isOpen()) {
+          viewer.getAsyncRemote().sendText(message);
+        }
+      }
+      log.debug("📢 Broadcast enviado para {} viewers", showViewers.size());
+    }
+  }
+
+  /**
+   * Retorna o número de viewers conectados
+   */
+  public int getViewerCount(String showId) {
+    Set<Session> showViewers = viewers.get(showId);
+    return showViewers != null ? showViewers.size() : 0;
+  }
+
+  /**
+   * Verifica se existe broadcaster ativo
+   */
+  public boolean hasBroadcaster(String showId) {
+    Session broadcaster = broadcasters.get(showId);
+    return broadcaster != null && broadcaster.isOpen();
+  }
+
+  /**
+   * Limpa timestamps antigos (mais de 30 segundos)
+   */
+  private void cleanOldAttempts() {
+    long now = System.currentTimeMillis();
+    lastConnectionAttempt.entrySet().removeIf(entry ->
+        (now - entry.getValue()) > 30000
+    );
+  }
+}

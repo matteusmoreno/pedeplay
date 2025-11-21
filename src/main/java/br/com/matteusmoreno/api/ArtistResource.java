@@ -9,19 +9,27 @@ import br.com.matteusmoreno.domain.artist.response.ArtistRepertoireDetailsRespon
 import br.com.matteusmoreno.domain.artist.service.ArtistService;
 import br.com.matteusmoreno.infrastructure.image.FileUploadRequest;
 import jakarta.annotation.security.RolesAllowed;
-import jakarta.inject.Inject;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.BeanParam;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.PATCH;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
-import org.bson.types.ObjectId;
-import org.eclipse.microprofile.jwt.JsonWebToken;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
+import org.bson.types.ObjectId;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Path("/artists")
 public class ArtistResource {
