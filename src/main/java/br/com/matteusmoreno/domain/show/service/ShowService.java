@@ -62,6 +62,10 @@ public class ShowService {
         ShowEvent.persist(showEvent);
         artist.update();
 
+        // 📣 REATIVO: Notifica via WebSocket que show iniciou
+        showWebSocket.notifyShowStarted(artist.id.toString(), showEvent.id.toString());
+        log.info("📣 Show {} iniciado - Notificação enviada via WebSocket", showEvent.id);
+
         return showEvent;
     }
 
@@ -81,6 +85,10 @@ public class ShowService {
         showEvent.totalRequests = showEvent.requests.size();
 
         showEvent.update();
+
+        // 📣 REATIVO: Notifica via WebSocket que show terminou
+        showWebSocket.notifyShowEnded(showEvent.artistId.toString(), showEvent.id.toString());
+        log.info("📣 Show {} encerrado - Notificação enviada via WebSocket", showEvent.id);
 
         return showEvent;
     }
@@ -111,13 +119,22 @@ public class ShowService {
         activeShow.update();
         artist.update();
 
+        // 📣 REATIVO: Notifica artista sobre novo pedido de música
         try {
             NewSongRequestNotification notification = new NewSongRequestNotification(newSongRequest);
             String jsonMessage = objectMapper.writeValueAsString(notification);
             showWebSocket.sendToArtist(request.artistId().toString(), jsonMessage);
+            log.info("📣 Novo pedido de música - Notificação enviada para artista {}", request.artistId());
         } catch (Exception e) {
             log.error("Falha ao enviar notificação WebSocket de novo pedido para o artista {}: {}", request.artistId(), e.getMessage());
         }
+
+        // 📣 REATIVO: Notifica via método específico também
+        showWebSocket.notifyNewSongRequest(
+            request.artistId().toString(),
+            activeShow.id.toString(),
+            newSongRequest.requestId.toString()
+        );
 
         return activeShow;
     }
@@ -167,13 +184,24 @@ public class ShowService {
         songRequestToUpdate.status = newStatus;
         showEvent.update();
 
+        // 📣 REATIVO: Notifica artista sobre atualização de status
         try {
             RequestStatusUpdateNotification notification = new RequestStatusUpdateNotification(requestId, newStatus);
             String jsonMessage = new ObjectMapper().writeValueAsString(notification);
             showWebSocket.sendToArtist(showEvent.artistId.toString(), jsonMessage);
+            log.info("📣 Status do pedido {} atualizado - Notificação enviada para artista", requestId);
         } catch (Exception e) {
             log.error("Falha ao enviar notificação WebSocket de atualização de status para o artista {}: {}", showEvent.artistId, e.getMessage());
         }
+
+        // 📣 REATIVO: Notifica TODOS (página pública) sobre mudança na fila
+        showWebSocket.notifyRequestStatusUpdated(
+            showEvent.artistId.toString(),
+            showEvent.id.toString(),
+            requestId.toString(),
+            newStatus.toString()
+        );
+        log.info("📣 Notificação de status enviada para página pública do show {}", showEvent.id);
 
         return showEvent;
     }

@@ -1,5 +1,6 @@
 package br.com.matteusmoreno.api.websocket;
 
+import br.com.matteusmoreno.domain.show.service.LiveStreamService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
@@ -25,14 +26,15 @@ public class LiveStreamWebSocket {
   private static final String ROLE_VIEWER = "viewer";
   private static final long COOLDOWN_MS = 5000;
 
-  // Mapa: showId -> Sessão do broadcaster
   private static final Map<String, Session> broadcasters = new ConcurrentHashMap<>();
-
-  // Mapa: showId -> Set de sessões dos viewers
   private static final Map<String, Set<Session>> viewers = new ConcurrentHashMap<>();
-
-  // Mapa: showId -> timestamp da última tentativa
   private static final Map<String, Long> lastConnectionAttempt = new ConcurrentHashMap<>();
+
+  private final LiveStreamService liveStreamService;
+
+  public LiveStreamWebSocket(LiveStreamService liveStreamService) {
+    this.liveStreamService = liveStreamService;
+  }
 
   @OnOpen
   public void onOpen(Session session,
@@ -90,16 +92,14 @@ public class LiveStreamWebSocket {
 
       Session broadcaster = broadcasters.get(showId);
       if (broadcaster != null && broadcaster.isOpen()) {
-        // Notifica broadcaster que viewer entrou
-        String notificationMessage = String.format(
-            "{\"type\":\"viewer-joined\",\"viewerId\":\"%s\",\"showId\":\"%s\"}",
-            userId, showId
-        );
-        broadcaster.getAsyncRemote().sendText(notificationMessage);
-        log.info("📣 Notificado broadcaster sobre novo viewer: {}", userId);
-
         // Notifica o viewer se já existe um broadcaster ativo
         session.getAsyncRemote().sendText("{\"type\":\"broadcaster-ready\",\"showId\":\"" + showId + "\"}");
+
+        // 📣 REATIVO: Notifica broadcaster sobre novo viewer
+        notifyBroadcasterNewViewer(showId, userId);
+
+        // 📣 REATIVO: Atualiza contagem de viewers
+        notifyViewerCountChanged(showId);
       }
     }
   }
@@ -178,16 +178,16 @@ public class LiveStreamWebSocket {
       }
       log.info("🔌 Viewer (Usuário {}) desconectado do show {}", userId, showId);
 
-      // ✅ NOVO: Notifica broadcaster que viewer saiu
-      Session broadcaster = broadcasters.get(showId);
-      if (broadcaster != null && broadcaster.isOpen()) {
-        String notificationMessage = String.format(
-            "{\"type\":\"viewer-left\",\"viewerId\":\"%s\",\"showId\":\"%s\"}",
-            userId, showId
-        );
-        broadcaster.getAsyncRemote().sendText(notificationMessage);
-        log.debug("📣 Notificado broadcaster que viewer saiu: {}", userId);
+      // 📣 REATIVO: Desregistra viewer do LiveStreamService
+      if (liveStreamService != null) {
+        liveStreamService.unregisterViewer(showId, userId);
       }
+
+      // 📣 REATIVO: Notifica broadcaster que viewer saiu
+      notifyBroadcasterViewerLeft(showId, userId);
+
+      // 📣 REATIVO: Atualiza contagem de viewers
+      notifyViewerCountChanged(showId);
     }
   }
 
@@ -270,12 +270,103 @@ public class LiveStreamWebSocket {
   }
 
   /**
-   * Limpa timestamps antigos (mais de 30 segundos)
+   * Limpa timestamps antigos
    */
   private void cleanOldAttempts() {
     long now = System.currentTimeMillis();
     lastConnectionAttempt.entrySet().removeIf(entry ->
         (now - entry.getValue()) > 30000
     );
+  }
+
+  // ========== MÉTODOS REATIVOS ==========
+
+  /**
+   * 📣 REATIVO: Notifica viewers sobre início da transmissão
+   */
+  public void notifyLiveStreamStarted(String showId, String quality) {
+    String message = String.format(
+        "{\"type\":\"livestream-started\",\"showId\":\"%s\",\"quality\":\"%s\",\"timestamp\":\"%s\"}",
+        showId, quality, java.time.LocalDateTime.now()
+    );
+    notifyViewers(showId, message);
+    log.info("📣 Notificação: Transmissão iniciada para show {}", showId);
+  }
+
+  /**
+   * 📣 REATIVO: Notifica viewers sobre término da transmissão
+   */
+  public void notifyLiveStreamEnded(String showId, Integer totalViewers, Integer peakViewers) {
+    String message = String.format(
+        "{\"type\":\"livestream-ended\",\"showId\":\"%s\",\"totalViewers\":%d,\"peakViewers\":%d,\"timestamp\":\"%s\"}",
+        showId, totalViewers, peakViewers, java.time.LocalDateTime.now()
+    );
+    notifyViewers(showId, message);
+    log.info("📣 Notificação: Transmissão encerrada para show {}", showId);
+  }
+
+  /**
+   * 📣 REATIVO: Atualiza contagem de viewers em tempo real
+   */
+  public void notifyViewerCountChanged(String showId) {
+    int currentViewers = getViewerCount(showId);
+    String message = String.format(
+        "{\"type\":\"viewer-count-updated\",\"showId\":\"%s\",\"count\":%d,\"timestamp\":\"%s\"}",
+        showId, currentViewers, java.time.LocalDateTime.now()
+    );
+
+    // Notifica broadcaster
+    Session broadcaster = broadcasters.get(showId);
+    if (broadcaster != null && broadcaster.isOpen()) {
+      broadcaster.getAsyncRemote().sendText(message);
+    }
+
+    // Notifica todos os viewers
+    notifyViewers(showId, message);
+
+    log.debug("📊 Contagem de viewers atualizada para show {}: {}", showId, currentViewers);
+  }
+
+  /**
+   * 📣 REATIVO: Notifica mudança de qualidade da transmissão
+   */
+  public void notifyQualityChanged(String showId, String newQuality) {
+    String message = String.format(
+        "{\"type\":\"stream-quality-changed\",\"showId\":\"%s\",\"quality\":\"%s\",\"timestamp\":\"%s\"}",
+        showId, newQuality, java.time.LocalDateTime.now()
+    );
+    notifyViewers(showId, message);
+    log.info("📣 Notificação: Qualidade alterada para {} no show {}", newQuality, showId);
+  }
+
+  /**
+   * 📣 REATIVO: Notifica broadcaster sobre novo viewer
+   */
+  public void notifyBroadcasterNewViewer(String showId, String viewerId) {
+    Session broadcaster = broadcasters.get(showId);
+    if (broadcaster != null && broadcaster.isOpen()) {
+      String message = String.format(
+          "{\"type\":\"viewer-joined\",\"showId\":\"%s\",\"viewerId\":\"%s\",\"totalViewers\":%d,\"timestamp\":\"%s\"}",
+          showId, viewerId, getViewerCount(showId), java.time.LocalDateTime.now()
+      );
+      broadcaster.getAsyncRemote().sendText(message);
+      log.debug("📣 Notificado broadcaster sobre viewer {}", viewerId);
+    }
+  }
+
+
+  /**
+   * 📣 REATIVO: Notifica broadcaster sobre viewer que saiu
+   */
+  public void notifyBroadcasterViewerLeft(String showId, String viewerId) {
+    Session broadcaster = broadcasters.get(showId);
+    if (broadcaster != null && broadcaster.isOpen()) {
+      String message = String.format(
+          "{\"type\":\"viewer-left\",\"showId\":\"%s\",\"viewerId\":\"%s\",\"totalViewers\":%d,\"timestamp\":\"%s\"}",
+          showId, viewerId, getViewerCount(showId), java.time.LocalDateTime.now()
+      );
+      broadcaster.getAsyncRemote().sendText(message);
+      log.debug("📣 Notificado broadcaster sobre saída do viewer {}", viewerId);
+    }
   }
 }
