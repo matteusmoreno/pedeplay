@@ -12,6 +12,7 @@ import br.com.matteusmoreno.domain.song.response.SongDetailsResponse;
 import br.com.matteusmoreno.domain.subscription.service.PlanService;
 import br.com.matteusmoreno.domain.subscription.service.SubscriptionService;
 import br.com.matteusmoreno.exception.*;
+import br.com.matteusmoreno.infrastructure.email.EmailService;
 import br.com.matteusmoreno.infrastructure.image.ImageService;
 import br.com.matteusmoreno.security.SecurityService;
 import io.quarkus.panache.common.Sort;
@@ -34,14 +35,16 @@ public class ArtistService {
     private final SecurityService securityService;
     private final AddressService addressService;
     private final ImageService imageService;
+    private final EmailService emailService;
 
 
-    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService, AddressService addressService, ImageService imageService) {
+    public ArtistService(SubscriptionService subscriptionService, PlanService planService, SecurityService securityService, AddressService addressService, ImageService imageService, EmailService emailService) {
         this.subscriptionService = subscriptionService;
         this.planService = planService;
         this.securityService = securityService;
         this.addressService = addressService;
         this.imageService = imageService;
+        this.emailService = emailService;
     }
 
     // CREATE A NEW ARTIST
@@ -76,6 +79,9 @@ public class ArtistService {
         artist.address.number = request.number();
 
         artist.persist();
+
+        this.emailService.sendWelcomeEmail(artist.email, artist.name);
+
         return artist;
     }
 

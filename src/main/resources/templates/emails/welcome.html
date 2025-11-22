@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bem-vindo ao PedePlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header .emoji {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .content {
+            padding: 40px 30px;
+            color: #333333;
+            line-height: 1.6;
+        }
+
+        .content h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .content p {
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .features {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+
+        .features h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .features li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 15px;
+        }
+
+        .features li:last-child {
+            border-bottom: none;
+        }
+
+        .features li:before {
+            content: "✓";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            padding: 15px 40px;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            margin: 20px 0;
+            font-size: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666666;
+            font-size: 14px;
+        }
+
+        .footer p {
+            margin-bottom: 10px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #667eea, transparent);
+            margin: 30px 0;
+        }
+
+        .highlight {
+            color: #667eea;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <span class="emoji">🎵</span>
+            <h1>Bem-vindo ao {platformName}!</h1>
+        </div>
+
+        <div class="content">
+            <h2>Olá, {artistName}! 👋</h2>
+
+            <p>É com grande alegria que damos as boas-vindas a você na <span class="highlight">{platformName}</span>, a plataforma que vai revolucionar a forma como você se conecta com seu público!</p>
+
+            <p>Estamos animados por ter você conosco. Sua jornada para criar experiências musicais inesquecíveis começa agora!</p>
+
+            <div class="divider"></div>
+
+            <div class="features">
+                <h3>🚀 O que você pode fazer agora:</h3>
+                <ul>
+                    <li><strong>Crie seu primeiro show ao vivo</strong> - Configure seu evento e comece a receber pedidos musicais</li>
+                    <li><strong>Monte seu repertório</strong> - Adicione suas músicas e deixe seu público escolher</li>
+                    <li><strong>Receba gorjetas em tempo real</strong> - Monetize sua arte de forma simples e direta</li>
+                    <li><strong>Interaja com seus fãs</strong> - Sistema de chat e pedidos ao vivo</li>
+                    <li><strong>Acompanhe suas estatísticas</strong> - Veja seus números e cresça ainda mais</li>
+                </ul>
+            </div>
+
+            <p>Você está no <span class="highlight">Plano FREE</span> e pode começar a usar todas as funcionalidades básicas imediatamente. Quando estiver pronto, considere fazer upgrade para desbloquear recursos premium!</p>
+
+            <div class="button-container">
+                <a href="http://localhost:3000/dashboard" class="cta-button">Acessar Minha Conta</a>
+            </div>
+
+            <div class="divider"></div>
+
+            <p><strong>💡 Dica importante:</strong> Complete seu perfil com foto, biografia e redes sociais para atrair mais público!</p>
+
+            <p>Estamos aqui para ajudar você em cada passo do caminho. Se tiver alguma dúvida, não hesite em entrar em contato conosco.</p>
+        </div>
+
+        <div class="footer">
+            <p><strong>Precisa de ajuda?</strong></p>
+            <p>Entre em contato: <a href="mailto:{supportEmail}">{supportEmail}</a></p>
+            <p style="margin-top: 20px; color: #999999; font-size: 12px;">
+                © 2025 PedePlay. Todos os direitos reservados.<br>
+                Este é um email automático, por favor não responda.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+
