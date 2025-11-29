@@ -80,7 +80,13 @@ public class ArtistService {
 
         artist.persist();
 
-        this.emailService.sendWelcomeEmail(artist.email, artist.name);
+        // Envio assíncrono do email (fire-and-forget)
+        emailService.sendWelcomeEmail(artist.email, artist.name)
+                .subscribe()
+                .with(
+                        item -> {}, // Sucesso - não faz nada extra
+                        failure -> {} // Falha - já está logada no EmailService
+                );
 
         return artist;
     }
