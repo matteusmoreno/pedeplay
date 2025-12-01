@@ -119,5 +119,15 @@ public class GlobalExceptionHandler {
         }
     }
 
+    @Provider
+    public static class InvalidTimeRangeMapper implements ExceptionMapper<InvalidTimeRangeException> {
+        @Override
+        public Response toResponse(InvalidTimeRangeException exception) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ErrorResponse(exception.getMessage()))
+                    .build();
+        }
+    }
+
     public record ErrorResponse(String message) {}
 }
