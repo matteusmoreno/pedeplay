@@ -1,0 +1,11 @@
+services:
+  app:
+    container_name: pedeplay-backend
+    build:
+      context: .    # <--- O PONTO É MUITO IMPORTANTE! Significa "pasta atual" (raiz)
+      dockerfile: src/main/docker/Dockerfile.jvm
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_HTTP_PORT=8080
+    restart: always
