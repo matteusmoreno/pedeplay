@@ -29,12 +29,12 @@ public class EmailService {
 
         String htmlContent = welcomeTemplate
                 .data("artistName", artistName)
-                .data("platformName", "PedePlay")
-                .data("supportEmail", "suporte@pedeplay.com.br")
+                .data("platformName", "Contrrat")
+                .data("supportEmail", "suporte@contrrat.com.br")
                 .render();
 
         return mailer.send(
-                Mail.withHtml(artistEmail, "Bem-vindo ao PedePlay!", htmlContent)
+                Mail.withHtml(artistEmail, "Bem-vindo ao Contrrat!", htmlContent)
         )
         .onItem().invoke(() -> log.info("✅ Email de boas-vindas enviado com sucesso para: {}", artistEmail))
         .onFailure().invoke(e -> log.error("❌ Erro ao enviar email de boas-vindas para {}: {}", artistEmail, e.getMessage()));
