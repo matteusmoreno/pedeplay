@@ -114,7 +114,7 @@ public class ShowService {
   }
 
   // FAZ PEDIDO DE MÚSICA
-  public Map<String, Object> makeSongRequest(MakeSongRequest request) throws Exception {
+  public Map<String, Object> makeSongRequest(MakeSongRequest request) {
     Artist artist = artistService.getArtistById(request.artistId());
     ShowEvent activeShow = ShowEvent.<ShowEvent>find("artistId = ?1 and status = ?2", request.artistId(), ShowStatus.ACTIVE)
         .firstResultOptional()
@@ -132,20 +132,35 @@ public class ShowService {
       // 1. Define status como AGUARDANDO PAGAMENTO
       newSongRequest.status = RequestStatus.PENDING_PAYMENT;
 
-      // 2. Cria o PIX no Mercado Pago
-      // Obs: O email deveria vir do usuário logado ou do request. Usando placeholder por enquanto.
-      String payerEmail = "cliente@email.com";
-      paymentData = mercadoPagoService.createPixPayment(
-          tipAmount,
-          "Gorjeta - Pedido de Música",
-          payerEmail,
-          webhookUrl
-      );
+      // 2. Valida email do cliente
+      String payerEmail = request.clientEmail();
+      if (payerEmail == null || payerEmail.isBlank()) {
+        // Usa email configurado da aplicação como fallback
+        payerEmail = "noreply@contrrat.com.br";
+        log.warn("⚠️ Email não fornecido para pagamento, usando fallback: {}", payerEmail);
+      } else if (!payerEmail.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+        log.warn("⚠️ Email inválido fornecido: {}, usando fallback", payerEmail);
+        payerEmail = "noreply@contrrat.com.br";
+      }
 
-      // 3. Salva o ID do pagamento no pedido
-      Long mpPaymentId = (Long) paymentData.get("paymentId");
-      newSongRequest.paymentId = String.valueOf(mpPaymentId);
-      // O pedido é salvo, mas NÃO notifica o artista ainda via WebSocket
+      // 3. Cria o PIX no Mercado Pago
+      try {
+        paymentData = mercadoPagoService.createPixPayment(
+            tipAmount,
+            String.format("Gorjeta - Pedido: %s", newSongRequest.songTitle),
+            payerEmail,
+            webhookUrl
+        );
+
+        // 4. Salva o ID do pagamento no pedido
+        Long mpPaymentId = (Long) paymentData.get("paymentId");
+        newSongRequest.paymentId = String.valueOf(mpPaymentId);
+
+        log.info("💳 Pagamento PIX criado - ID: {} - Valor: R$ {}", mpPaymentId, tipAmount);
+      } catch (Exception e) {
+        log.error("❌ Erro ao criar pagamento no Mercado Pago", e);
+        throw new RuntimeException("Erro ao processar pagamento. Tente novamente.", e);
+      }
     } else {
       // Fluxo Gratuito Normal
       newSongRequest.status = RequestStatus.PENDING;

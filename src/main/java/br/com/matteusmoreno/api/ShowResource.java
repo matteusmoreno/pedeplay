@@ -81,7 +81,7 @@ public class ShowResource {
 
     @POST
     @Path("/request")
-    public Response makeRequest(@Valid MakeSongRequest request) throws Exception {
+    public Response makeRequest(@Valid MakeSongRequest request) {
         Map<String, Object> result = showService.makeSongRequest(request);
         return Response.status(Response.Status.ACCEPTED).entity(result).build();
     }
