@@ -19,6 +19,6 @@ public class SongRequest {
     public BigDecimal tipAmount;
     public String clientMessage;
     public RequestStatus status;
-    public ObjectId paymentId;
+    public String paymentId;
     public LocalDateTime receivedAt;
 }

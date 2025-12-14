@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
+import java.util.Map;
 import org.bson.types.ObjectId;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
@@ -81,8 +82,8 @@ public class ShowResource {
     @POST
     @Path("/request")
     public Response makeRequest(@Valid MakeSongRequest request) throws Exception {
-        ShowEvent showEvent = showService.makeSongRequest(request);
-        return Response.status(Response.Status.ACCEPTED).entity(new ShowDetailsResponse(showEvent)).build();
+        Map<String, Object> result = showService.makeSongRequest(request);
+        return Response.status(Response.Status.ACCEPTED).entity(result).build();
     }
 
     @PATCH
