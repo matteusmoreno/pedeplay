@@ -6,16 +6,17 @@ import br.com.matteusmoreno.domain.show.constant.RequestStatus;
 import br.com.matteusmoreno.domain.show.service.ShowService;
 import br.com.matteusmoreno.infrastructure.payment.MercadoPagoService;
 import com.mercadopago.resources.payment.Payment;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 @Path("/api/webhooks/mercadopago")
 @Slf4j
@@ -38,180 +39,160 @@ public class MercadoPagoWebhook {
   }
 
   /**
-   * Webhook do Mercado Pago - Suporta formatos antigo e novo
-   * Formato antigo: POST com query params ?topic=payment&id=123
-   * Formato novo: POST com JSON body {"action": "payment.updated", "data": {"id": "123"}}
+   * Webhook do Mercado Pago
+   * Recebe notificações quando o status de um pagamento muda
    */
   @POST
-  @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+  @Consumes({MediaType.APPLICATION_FORM_URLENCODED, MediaType.APPLICATION_JSON})
   @Produces(MediaType.APPLICATION_JSON)
-  public Response receiveNotificationUrlEncoded(
+  public Response receiveNotification(
       @HeaderParam("x-signature") String signature,
       @HeaderParam("x-request-id") String requestId,
-      @QueryParam("topic") String topic,
-      @QueryParam("id") Long id,
-      @QueryParam("data.id") Long dataId) {
-
-    // Valida assinatura se configurada
-    if (!validateSignature(signature, requestId, String.valueOf(id != null ? id : dataId))) {
-      log.warn("⚠️ Assinatura inválida no webhook - Possível tentativa de fraude!");
-      return Response.status(Response.Status.UNAUTHORIZED)
-          .entity(Map.of(ERROR_KEY, "Invalid signature"))
-          .build();
-    }
-
-    return processNotification(topic, id, dataId, null);
-  }
-
-  @POST
-  @Consumes(MediaType.APPLICATION_JSON)
-  @Produces(MediaType.APPLICATION_JSON)
-  public Response receiveNotificationJson(
-      @HeaderParam("x-signature") String signature,
-      @HeaderParam("x-request-id") String requestId,
-      @HeaderParam("X-Signature") String signatureUpper,
-      @HeaderParam("X-Request-Id") String requestIdUpper,
       @QueryParam("topic") String topic,
       @QueryParam("id") Long queryId,
+      @QueryParam("data.id") Long dataId,
+      @QueryParam("resource") Long resource,
       Map<String, Object> body) {
 
-    log.info("📥 Webhook JSON recebido - Body: {}", body);
-    log.debug("🔍 Headers recebidos - x-signature: {}, x-request-id: {}", signature, requestId);
-    log.debug("🔍 Headers recebidos - X-Signature: {}, X-Request-Id: {}", signatureUpper, requestIdUpper);
-
-    // Usa o header que vier (case-insensitive)
-    if (signature == null && signatureUpper != null) signature = signatureUpper;
-    if (requestId == null && requestIdUpper != null) requestId = requestIdUpper;
-
-    Long bodyId = null;
-    if (body != null && body.containsKey("data")) {
-      Object data = body.get("data");
-      if (data instanceof Map) {
-        Object id = ((Map<?, ?>) data).get("id");
-        if (id != null) {
-          bodyId = Long.parseLong(id.toString());
-        }
-      }
-    }
-
-    // Valida assinatura se configurada
-    Long paymentId = queryId != null ? queryId : bodyId;
-    if (!validateSignature(signature, requestId, String.valueOf(paymentId))) {
-      log.warn("⚠️ Assinatura inválida no webhook JSON - Possível tentativa de fraude!");
-      return Response.status(Response.Status.UNAUTHORIZED)
-          .entity(Map.of(ERROR_KEY, "Invalid signature"))
-          .build();
-    }
-
-    return processNotification(topic, queryId, null, bodyId);
-  }
-
-  private Response processNotification(String topic, Long id, Long dataId, Long bodyId) {
-    log.info("📥 Webhook recebido - Topic: {}, ID: {}, Data.ID: {}, Body.ID: {}",
-             topic, id, dataId, bodyId);
-
-    // Tenta obter o ID de qualquer fonte
-    Long paymentId;
-    if (id != null) {
-      paymentId = id;
-    } else if (dataId != null) {
-      paymentId = dataId;
-    } else {
-      paymentId = bodyId;
-    }
+    // Extrai o payment ID de qualquer fonte (query params ou body JSON)
+    Long paymentId = extractPaymentId(queryId, dataId, resource, body);
 
     if (paymentId == null) {
-      log.warn("⚠️ Webhook sem ID de pagamento");
+      log.warn("⚠️ Webhook recebido sem payment ID");
       return Response.status(Response.Status.BAD_REQUEST)
           .entity(Map.of(ERROR_KEY, "Missing payment ID"))
           .build();
     }
 
+    log.info("📥 Webhook recebido - Payment ID: {}, Topic: {}", paymentId, topic);
+
+    // Valida assinatura do Mercado Pago
+    if (!isValidSignature(signature, requestId, paymentId)) {
+      log.warn("⚠️ Assinatura inválida - Payment ID: {}", paymentId);
+      return Response.status(Response.Status.UNAUTHORIZED)
+          .entity(Map.of(ERROR_KEY, "Invalid signature"))
+          .build();
+    }
+
+    return processPaymentNotification(paymentId, topic);
+  }
+
+  /**
+   * Extrai o payment ID de diferentes fontes (query params ou JSON body)
+   */
+  private Long extractPaymentId(Long queryId, Long dataId, Long resource, Map<String, Object> body) {
+    // Tenta query parameters primeiro
+    if (queryId != null) return queryId;
+    if (dataId != null) return dataId;
+    if (resource != null) return resource;
+
+    // Tenta extrair do body JSON
+    if (body != null && body.containsKey("data")) {
+      Object data = body.get("data");
+      if (data instanceof Map) {
+        Object id = ((Map<?, ?>) data).get("id");
+        if (id != null) {
+          return Long.parseLong(id.toString());
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Processa a notificação de pagamento
+   */
+  private Response processPaymentNotification(Long paymentId, String topic) {
     // Ignora notificações que não são de pagamento
     if (topic != null && !"payment".equals(topic)) {
       log.debug("ℹ️ Ignorando notificação não relacionada a pagamento: {}", topic);
-      return Response.ok(Map.of("message", "Ignored non-payment notification")).build();
+      return Response.ok(Map.of("message", "Ignored")).build();
     }
 
     try {
-      // 1. Consulta o status atual no Mercado Pago
+      // Consulta o status atual no Mercado Pago
       Payment payment = mercadoPagoService.getPayment(paymentId);
+      String status = payment.getStatus();
 
-      log.info("💳 Status do pagamento {}: {}", paymentId, payment.getStatus());
+      log.info("💳 Payment {} - Status: {}", paymentId, status);
 
-      if ("approved".equals(payment.getStatus())) {
+      // Processa de acordo com o status
+      if ("approved".equals(status)) {
         processApprovedPayment(String.valueOf(payment.getId()), payment.getTransactionAmount());
         return Response.ok(Map.of(STATUS_KEY, "processed", PAYMENT_STATUS_KEY, "approved")).build();
-      } else if ("rejected".equals(payment.getStatus()) || "cancelled".equals(payment.getStatus())) {
-        processRejectedPayment(String.valueOf(payment.getId()));
-        return Response.ok(Map.of(STATUS_KEY, "processed", PAYMENT_STATUS_KEY, payment.getStatus())).build();
-      } else {
-        log.info("ℹ️ Status intermediário: {} - Aguardando confirmação", payment.getStatus());
-        return Response.ok(Map.of(STATUS_KEY, "pending", PAYMENT_STATUS_KEY, payment.getStatus())).build();
       }
 
+      if ("rejected".equals(status) || "cancelled".equals(status)) {
+        processRejectedPayment(String.valueOf(payment.getId()));
+        return Response.ok(Map.of(STATUS_KEY, "processed", PAYMENT_STATUS_KEY, status)).build();
+      }
+
+      // Status intermediário (pending, in_process, etc)
+      return Response.ok(Map.of(STATUS_KEY, "pending", PAYMENT_STATUS_KEY, status)).build();
+
     } catch (Exception e) {
-      log.error("❌ Erro ao processar webhook do Mercado Pago - Payment ID: {}", paymentId, e);
-      // Retorna 200 mesmo com erro para evitar reenvios infinitos do MP
-      return Response.ok(Map.of(STATUS_KEY, "error", "message", "Internal processing error")).build();
+      log.error("❌ Erro ao processar webhook - Payment ID: {}", paymentId, e);
+      return Response.ok(Map.of(STATUS_KEY, "error", "message", "Processing error")).build();
     }
   }
 
+  /**
+   * Processa pagamento aprovado pelo Mercado Pago
+   */
   private void processApprovedPayment(String paymentId, java.math.BigDecimal amount) {
-    log.info("✅ Processando pagamento aprovado: {} - Valor: R$ {}", paymentId, amount);
+    log.info("✅ Pagamento aprovado: {} - R$ {}", paymentId, amount);
 
-    // Query no MongoDB para achar o ShowEvent que contém um request com este paymentId
+    // Busca o show que contém este pagamento
     ShowEvent showEvent = ShowEvent.find("requests.paymentId", paymentId).firstResult();
-
     if (showEvent == null) {
-      log.warn("⚠️ Nenhum ShowEvent encontrado para o paymentId: {}", paymentId);
+      log.warn("⚠️ Show não encontrado para pagamento: {}", paymentId);
       return;
     }
 
-    // Achar o pedido específico dentro da lista
+    // Busca o pedido específico dentro do show
     SongRequest songRequest = showEvent.requests.stream()
         .filter(r -> paymentId.equals(r.paymentId))
         .findFirst()
         .orElse(null);
 
     if (songRequest == null) {
-      log.warn("⚠️ Nenhum SongRequest encontrado com paymentId: {}", paymentId);
+      log.warn("⚠️ Pedido não encontrado para pagamento: {}", paymentId);
       return;
     }
 
-    // ✅ IDEMPOTÊNCIA: Verifica se já foi processado
+    // Verifica se já foi processado (idempotência)
     if (songRequest.status != RequestStatus.PENDING_PAYMENT) {
-      log.info("ℹ️ Pagamento {} já foi processado anteriormente. Status atual: {}",
-               paymentId, songRequest.status);
+      log.info("ℹ️ Pagamento {} já processado. Status: {}", paymentId, songRequest.status);
       return;
     }
 
-    // Atualiza o status do pedido
-    songRequest.status = RequestStatus.PENDING; // Libera na fila
+    // Atualiza status e libera o pedido na fila
+    songRequest.status = RequestStatus.PENDING;
 
     // Atualiza totais do show
     showEvent.totalTipsValue = showEvent.totalTipsValue.add(songRequest.tipAmount);
     showEvent.totalRequests = (int) showEvent.requests.stream()
-        .filter(r -> r.status != RequestStatus.PENDING_PAYMENT &&
-                     r.status != RequestStatus.REJECTED)
+        .filter(r -> r.status != RequestStatus.PENDING_PAYMENT && r.status != RequestStatus.REJECTED)
         .count();
 
     showEvent.update();
 
-    // Notifica o Artista agora que o pagamento foi confirmado
+    // Notifica o artista via WebSocket
     showService.notifyArtistAndPublic(showEvent.artistId, showEvent, songRequest);
 
-    log.info("🎵 Pagamento confirmado! Pedido liberado: {} - {}",
-             songRequest.songTitle, paymentId);
+    log.info("🎵 Pedido liberado: {} - Pagamento: {}", songRequest.songTitle, paymentId);
   }
 
+  /**
+   * Processa pagamento rejeitado ou cancelado
+   */
   private void processRejectedPayment(String paymentId) {
-    log.info("❌ Processando pagamento rejeitado/cancelado: {}", paymentId);
+    log.info("❌ Pagamento rejeitado: {}", paymentId);
 
     ShowEvent showEvent = ShowEvent.find("requests.paymentId", paymentId).firstResult();
-
     if (showEvent == null) {
-      log.warn("⚠️ Nenhum ShowEvent encontrado para o paymentId rejeitado: {}", paymentId);
+      log.warn("⚠️ Show não encontrado para pagamento rejeitado: {}", paymentId);
       return;
     }
 
@@ -223,30 +204,29 @@ public class MercadoPagoWebhook {
           if (req.status == RequestStatus.PENDING_PAYMENT) {
             req.status = RequestStatus.REJECTED;
             showEvent.update();
-            log.info("🚫 Pedido marcado como rejeitado: {} - {}", req.songTitle, paymentId);
+            log.info("🚫 Pedido rejeitado: {} - Pagamento: {}", req.songTitle, paymentId);
           }
         });
   }
 
   /**
    * Valida a assinatura do webhook do Mercado Pago
-   * Documentação: https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks#editor_3
    */
-  private boolean validateSignature(String signature, String requestId, String dataId) {
-    // Se não houver secret configurado, permite (modo desenvolvimento)
+  private boolean isValidSignature(String signature, String requestId, Long paymentId) {
+    // Em desenvolvimento sem secret, permite webhook
     if (webhookSecret == null || webhookSecret.isBlank()) {
-      log.warn("⚠️ Webhook secret não configurado - Validação de assinatura desabilitada (INSEGURO!)");
+      log.warn("⚠️ Webhook secret não configurado - Validação desabilitada");
       return true;
     }
 
     // Se não houver assinatura, rejeita
     if (signature == null || signature.isBlank()) {
-      log.warn("⚠️ Webhook sem assinatura - Rejeitado");
+      log.warn("⚠️ Webhook sem assinatura");
       return false;
     }
 
     try {
-      // Extrai as partes da assinatura: ts=timestamp,v1=hash
+      // Extrai timestamp e hash da assinatura: ts=1234567890,v1=abc123...
       String[] parts = signature.split(",");
       String ts = null;
       String hash = null;
@@ -254,87 +234,47 @@ public class MercadoPagoWebhook {
       for (String part : parts) {
         String[] keyValue = part.trim().split("=", 2);
         if (keyValue.length == 2) {
-          if ("ts".equals(keyValue[0])) {
-            ts = keyValue[1];
-          } else if ("v1".equals(keyValue[0])) {
-            hash = keyValue[1];
-          }
+          if ("ts".equals(keyValue[0])) ts = keyValue[1];
+          else if ("v1".equals(keyValue[0])) hash = keyValue[1];
         }
       }
 
       if (ts == null || hash == null) {
-        log.warn("⚠️ Formato de assinatura inválido: {}", signature);
+        log.warn("⚠️ Formato de assinatura inválido");
         return false;
       }
 
-      log.info("🔍 DEBUG Validação de Assinatura:");
-      log.info("   📌 dataId: {}", dataId);
-      log.info("   📌 requestId: {}", requestId);
-      log.info("   📌 ts: {}", ts);
-      log.info("   📌 hash recebido: {}", hash);
-      log.info("   📌 secret: {}...", webhookSecret != null ? webhookSecret.substring(0, Math.min(15, webhookSecret.length())) : "null");
+      // Testa diferentes formatos de manifest que o MP pode usar
+      String dataId = String.valueOf(paymentId);
 
-      // Tenta 4 formatos diferentes de manifest
+      // Formato principal: id:X;request-id:Y;ts:Z;
+      String manifest = String.format("id:%s;request-id:%s;ts:%s;", dataId, requestId, ts);
+      String calculatedHash = calculateHMAC(manifest);
 
-      // Formato 1: id:X;request-id:Y;ts:Z;
-      String manifest1 = String.format("id:%s;request-id:%s;ts:%s;", dataId, requestId, ts);
-      String hash1 = calculateHMAC(manifest1);
-
-      // Formato 2: id=X&request_id=Y&ts=Z
-      String manifest2 = String.format("id=%s&request_id=%s&ts=%s", dataId, requestId, ts);
-      String hash2 = calculateHMAC(manifest2);
-
-      // Formato 3: Sem request-id (id:X;ts:Z;)
-      String manifest3 = String.format("id:%s;ts:%s;", dataId, ts);
-      String hash3 = calculateHMAC(manifest3);
-
-      // Formato 4: Novo sem request_id (id=X&ts=Z)
-      String manifest4 = String.format("id=%s&ts=%s", dataId, ts);
-      String hash4 = calculateHMAC(manifest4);
-
-      log.info("   🧪 Testando 4 formatos:");
-      log.info("      1️⃣ {}", manifest1);
-      log.info("         Hash: {}", hash1);
-      log.info("      2️⃣ {}", manifest2);
-      log.info("         Hash: {}", hash2);
-      log.info("      3️⃣ {}", manifest3);
-      log.info("         Hash: {}", hash3);
-      log.info("      4️⃣ {}", manifest4);
-      log.info("         Hash: {}", hash4);
-
-      // Verifica qual formato corresponde
-      boolean isValid = false;
-      String matchedFormat = "nenhum";
-
-      if (hash.equals(hash1)) {
-        isValid = true;
-        matchedFormat = "Formato 1 (id:X;request-id:Y;ts:Z;)";
-      } else if (hash.equals(hash2)) {
-        isValid = true;
-        matchedFormat = "Formato 2 (id=X&request_id=Y&ts=Z)";
-      } else if (hash.equals(hash3)) {
-        isValid = true;
-        matchedFormat = "Formato 3 (id:X;ts:Z;)";
-      } else if (hash.equals(hash4)) {
-        isValid = true;
-        matchedFormat = "Formato 4 (id=X&ts=Z)";
+      if (hash.equals(calculatedHash)) {
+        log.info("✅ Assinatura válida - Payment {}", paymentId);
+        return true;
       }
 
-      if (isValid) {
-        log.info("✅ Assinatura VÁLIDA - Formato: {}", matchedFormat);
-      } else {
-        log.warn("❌ Assinatura INVÁLIDA - Nenhum formato correspondeu");
-        log.warn("   🔴 Hash recebido do MP:  {}", hash);
-        log.warn("   🟢 Hash calculado (F1):  {}", hash1);
-        log.warn("   🟢 Hash calculado (F2):  {}", hash2);
-        log.warn("   🟢 Hash calculado (F3):  {}", hash3);
-        log.warn("   🟢 Hash calculado (F4):  {}", hash4);
+      // Tenta formatos alternativos (sem request-id, formato novo, etc)
+      String[] alternativeFormats = {
+          String.format("id=%s&request_id=%s&ts=%s", dataId, requestId, ts),
+          String.format("id:%s;ts:%s;", dataId, ts),
+          String.format("id=%s&ts=%s", dataId, ts)
+      };
+
+      for (String altManifest : alternativeFormats) {
+        if (hash.equals(calculateHMAC(altManifest))) {
+          log.info("✅ Assinatura válida (formato alternativo) - Payment {}", paymentId);
+          return true;
+        }
       }
 
-      return isValid;
+      log.warn("❌ Assinatura inválida - Payment {}", paymentId);
+      return false;
 
     } catch (Exception e) {
-      log.error("❌ Erro ao validar assinatura do webhook", e);
+      log.error("❌ Erro ao validar assinatura", e);
       return false;
     }
   }
