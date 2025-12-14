@@ -11,7 +11,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import org.bson.types.ObjectId;
 
-@Path("/webhooks/mercadopago")
+@Path("/api/webhooks/mercadopago")
 public class MercadoPagoWebhook {
 
   @Inject
