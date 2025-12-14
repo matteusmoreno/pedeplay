@@ -3,6 +3,7 @@ package br.com.matteusmoreno.domain.artist;
 import br.com.matteusmoreno.domain.address.Address;
 import br.com.matteusmoreno.domain.artist.response.ArtistRepertoireDetailsResponse;
 import br.com.matteusmoreno.domain.subscription.Subscription;
+import br.com.matteusmoreno.exception.ArtistNotFoundException;
 import io.quarkus.mongodb.panache.PanacheMongoEntity;
 import io.quarkus.mongodb.panache.common.MongoEntity;
 import lombok.AllArgsConstructor;
@@ -37,4 +38,10 @@ public class Artist extends PanacheMongoEntity {
     public LocalDateTime createdAt;
     public LocalDateTime updatedAt;
     public LocalDateTime deletedAt;
+
+    public static Artist findArtistByEmail(String email) {
+        return Artist.<Artist>find("email", email)
+            .firstResultOptional()
+            .orElseThrow(() -> new ArtistNotFoundException("Artist with email " + email + " not found."));
+    }
 }

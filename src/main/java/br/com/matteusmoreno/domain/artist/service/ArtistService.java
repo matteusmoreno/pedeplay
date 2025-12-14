@@ -57,31 +57,14 @@ public class ArtistService {
 
         String hashedPassword = securityService.hashPassword(request.password());
 
-        Artist artist = Artist.builder()
-                .name(request.name())
-                .email(request.email())
-                .emailVerified(false)
-                .password(hashedPassword)
-                .biography(request.biography())
-                .balance(BigDecimal.ZERO)
-                .profileImageUrl(null)
-                .profileQrCodeUrl("")
-                .address(address)
-                .socialLinks(request.socialLinks())
-                .subscription(subscriptionService.createFreeSubscription())
-                .active(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .deletedAt(null)
-                .build();
+        Artist artist = this.buildArtist(request, address, hashedPassword);
 
         artist.address.complement = request.complement();
         artist.address.number = request.number();
 
         artist.persist();
 
-        // Envio assíncrono do email (fire-and-forget)
-        emailService.sendWelcomeEmail(artist.email, artist.name)
+        this.emailService.sendWelcomeEmail(artist.email, artist.name)
                 .subscribe()
                 .with(
                         item -> {}, // Sucesso - não faz nada extra
@@ -123,7 +106,7 @@ public class ArtistService {
 
     // UPDATE ARTIST DETAILS
     public Artist updateArtist(UpdateArtistRequest request, String loggedInArtistId) {
-        verifyOwnership(request.id(), loggedInArtistId);
+        this.verifyOwnership(request.id(), loggedInArtistId);
         Artist artist = getArtistById(request.id());
 
         if (request.name() != null) artist.name = request.name();
@@ -223,10 +206,30 @@ public class ArtistService {
     }
 
     // PRIVATE METHODS
-    private void verifyOwnership(ObjectId resourceArtistId, String loggedInArtistId) {
+    protected void verifyOwnership(ObjectId resourceArtistId, String loggedInArtistId) {
         if (!resourceArtistId.equals(new ObjectId(loggedInArtistId))) {
             throw new ForbiddenException("Operation not allowed. You can only modify your own data.");
         }
+    }
+
+    protected Artist buildArtist(CreateArtistRequest request, Address address, String hashedPassword) {
+        return Artist.builder()
+            .name(request.name())
+            .email(request.email())
+            .emailVerified(false)
+            .password(hashedPassword)
+            .biography(request.biography())
+            .balance(BigDecimal.ZERO)
+            .profileImageUrl(null)
+            .profileQrCodeUrl("")
+            .address(address)
+            .socialLinks(request.socialLinks())
+            .subscription(subscriptionService.createFreeSubscription())
+            .active(true)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .deletedAt(null)
+            .build();
     }
 
 }

@@ -18,9 +18,7 @@ public class AuthenticationService {
     }
 
     public String login(LoginRequest request) {
-        Artist artist = Artist.<Artist>find("email", request.email())
-                .firstResultOptional()
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password."));
+        Artist artist = Artist.findArtistByEmail(request.email());
 
         if (!securityService.checkPassword(request.password(), artist.password)) {
             throw new InvalidCredentialsException("Invalid email or password.");
