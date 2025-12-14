@@ -69,11 +69,19 @@ public class MercadoPagoWebhook {
   public Response receiveNotificationJson(
       @HeaderParam("x-signature") String signature,
       @HeaderParam("x-request-id") String requestId,
+      @HeaderParam("X-Signature") String signatureUpper,
+      @HeaderParam("X-Request-Id") String requestIdUpper,
       @QueryParam("topic") String topic,
       @QueryParam("id") Long queryId,
       Map<String, Object> body) {
 
     log.info("📥 Webhook JSON recebido - Body: {}", body);
+    log.debug("🔍 Headers recebidos - x-signature: {}, x-request-id: {}", signature, requestId);
+    log.debug("🔍 Headers recebidos - X-Signature: {}, X-Request-Id: {}", signatureUpper, requestIdUpper);
+
+    // Usa o header que vier (case-insensitive)
+    if (signature == null && signatureUpper != null) signature = signatureUpper;
+    if (requestId == null && requestIdUpper != null) requestId = requestIdUpper;
 
     Long bodyId = null;
     if (body != null && body.containsKey("data")) {
@@ -259,14 +267,90 @@ public class MercadoPagoWebhook {
         return false;
       }
 
-      // Monta o manifest: id + requestId + timestamp
-      String manifest = String.format("id:%s;request-id:%s;ts:%s;", dataId, requestId, ts);
+      log.info("🔍 DEBUG Validação de Assinatura:");
+      log.info("   📌 dataId: {}", dataId);
+      log.info("   📌 requestId: {}", requestId);
+      log.info("   📌 ts: {}", ts);
+      log.info("   📌 hash recebido: {}", hash);
+      log.info("   📌 secret: {}...", webhookSecret != null ? webhookSecret.substring(0, Math.min(15, webhookSecret.length())) : "null");
 
-      // Calcula HMAC SHA256
-      Mac hmac = Mac.getInstance(HMAC_SHA256);
-      SecretKeySpec secretKey = new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256);
+      // Tenta 4 formatos diferentes de manifest
+
+      // Formato 1: id:X;request-id:Y;ts:Z;
+      String manifest1 = String.format("id:%s;request-id:%s;ts:%s;", dataId, requestId, ts);
+      String hash1 = calculateHMAC(manifest1);
+
+      // Formato 2: id=X&request_id=Y&ts=Z
+      String manifest2 = String.format("id=%s&request_id=%s&ts=%s", dataId, requestId, ts);
+      String hash2 = calculateHMAC(manifest2);
+
+      // Formato 3: Sem request-id (id:X;ts:Z;)
+      String manifest3 = String.format("id:%s;ts:%s;", dataId, ts);
+      String hash3 = calculateHMAC(manifest3);
+
+      // Formato 4: Novo sem request_id (id=X&ts=Z)
+      String manifest4 = String.format("id=%s&ts=%s", dataId, ts);
+      String hash4 = calculateHMAC(manifest4);
+
+      log.info("   🧪 Testando 4 formatos:");
+      log.info("      1️⃣ {}", manifest1);
+      log.info("         Hash: {}", hash1);
+      log.info("      2️⃣ {}", manifest2);
+      log.info("         Hash: {}", hash2);
+      log.info("      3️⃣ {}", manifest3);
+      log.info("         Hash: {}", hash3);
+      log.info("      4️⃣ {}", manifest4);
+      log.info("         Hash: {}", hash4);
+
+      // Verifica qual formato corresponde
+      boolean isValid = false;
+      String matchedFormat = "nenhum";
+
+      if (hash.equals(hash1)) {
+        isValid = true;
+        matchedFormat = "Formato 1 (id:X;request-id:Y;ts:Z;)";
+      } else if (hash.equals(hash2)) {
+        isValid = true;
+        matchedFormat = "Formato 2 (id=X&request_id=Y&ts=Z)";
+      } else if (hash.equals(hash3)) {
+        isValid = true;
+        matchedFormat = "Formato 3 (id:X;ts:Z;)";
+      } else if (hash.equals(hash4)) {
+        isValid = true;
+        matchedFormat = "Formato 4 (id=X&ts=Z)";
+      }
+
+      if (isValid) {
+        log.info("✅ Assinatura VÁLIDA - Formato: {}", matchedFormat);
+      } else {
+        log.warn("❌ Assinatura INVÁLIDA - Nenhum formato correspondeu");
+        log.warn("   🔴 Hash recebido do MP:  {}", hash);
+        log.warn("   🟢 Hash calculado (F1):  {}", hash1);
+        log.warn("   🟢 Hash calculado (F2):  {}", hash2);
+        log.warn("   🟢 Hash calculado (F3):  {}", hash3);
+        log.warn("   🟢 Hash calculado (F4):  {}", hash4);
+      }
+
+      return isValid;
+
+    } catch (Exception e) {
+      log.error("❌ Erro ao validar assinatura do webhook", e);
+      return false;
+    }
+  }
+
+  /**
+   * Calcula HMAC SHA256 de um manifest
+   */
+  private String calculateHMAC(String manifest) {
+    try {
+      javax.crypto.Mac hmac = javax.crypto.Mac.getInstance("HmacSHA256");
+      javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
+          webhookSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+          "HmacSHA256"
+      );
       hmac.init(secretKey);
-      byte[] hashBytes = hmac.doFinal(manifest.getBytes(StandardCharsets.UTF_8));
+      byte[] hashBytes = hmac.doFinal(manifest.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
       // Converte para hex
       StringBuilder hexString = new StringBuilder();
@@ -277,22 +361,10 @@ public class MercadoPagoWebhook {
         }
         hexString.append(hex);
       }
-      String calculatedHash = hexString.toString();
-
-      // Compara hashes
-      boolean isValid = calculatedHash.equals(hash);
-
-      if (isValid) {
-        log.debug("✅ Assinatura válida - Webhook autenticado");
-      } else {
-        log.warn("⚠️ Hash não corresponde - Esperado: {}, Recebido: {}", calculatedHash, hash);
-      }
-
-      return isValid;
-
+      return hexString.toString();
     } catch (Exception e) {
-      log.error("❌ Erro ao validar assinatura do webhook", e);
-      return false;
+      log.error("❌ Erro ao calcular HMAC", e);
+      return "";
     }
   }
 }
